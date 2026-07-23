@@ -1,0 +1,455 @@
+import { ipcMain, dialog, shell, BrowserWindow, app } from "electron";
+import { IPC_CHANNELS } from "../../shared/constants";
+import { DatabaseManager } from "../database/database-manager";
+import { SettingsManager } from "../settings/settings-manager";
+import { YtDlpManager } from "../downloader/yt-dlp-manager";
+import { FFmpegManager } from "../ffmpeg/ffmpeg-manager";
+import { DownloadEngine } from "../downloader/download-engine";
+import { QueueManager } from "../queue/queue-manager";
+import { ConverterManager } from "../converter/converter-manager";
+import { HistoryManager } from "../database/history-manager";
+import { SchedulerManager } from "../scheduler/scheduler-manager";
+import { NotificationManager } from "./notification-manager";
+import { ClipboardManager } from "./clipboard-manager";
+import { Logger } from "../../shared/logger";
+import type { MediaInfo, MediaFormat, PlaylistVideo, MediaType, DownloadItem } from "../../shared/types";
+
+const logger = new Logger("ipc");
+
+export class IpcHandler {
+  private window: BrowserWindow;
+  private database: DatabaseManager;
+  private settings: SettingsManager;
+  private ytDlp: YtDlpManager;
+  private ffmpeg: FFmpegManager;
+  private downloadEngine: DownloadEngine;
+  private queueManager: QueueManager;
+  private converter: ConverterManager;
+  private historyManager: HistoryManager;
+  private scheduler: SchedulerManager;
+  private notifications: NotificationManager;
+  private clipboard: ClipboardManager;
+
+  constructor(
+    window: BrowserWindow,
+    database: DatabaseManager,
+    settings: SettingsManager,
+    ytDlp: YtDlpManager,
+    ffmpeg: FFmpegManager,
+    downloadEngine: DownloadEngine,
+    queueManager: QueueManager,
+    converter: ConverterManager,
+    historyManager: HistoryManager,
+    scheduler: SchedulerManager,
+    notifications: NotificationManager,
+    clipboard: ClipboardManager,
+  ) {
+    this.window = window;
+    this.database = database;
+    this.settings = settings;
+    this.ytDlp = ytDlp;
+    this.ffmpeg = ffmpeg;
+    this.downloadEngine = downloadEngine;
+    this.queueManager = queueManager;
+    this.converter = converter;
+    this.historyManager = historyManager;
+    this.scheduler = scheduler;
+    this.notifications = notifications;
+    this.clipboard = clipboard;
+    this.registerHandlers();
+    logger.info("IPC handlers registered");
+  }
+
+  private registerHandlers(): void {
+    // Analyzer
+    ipcMain.handle(IPC_CHANNELS.ANALYZE_URL, async (_event, url: string) => {
+      return this.analyzeUrl(url);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.ANALYZE_PLAYLIST, async (_event, url: string) => {
+      return this.analyzePlaylist(url);
+    });
+
+    // Downloads
+    ipcMain.handle(IPC_CHANNELS.START_DOWNLOAD, async (_event, item: Partial<DownloadItem>) => {
+      return this.downloadEngine.startDownload(item);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.PAUSE_DOWNLOAD, async (_event, id: string) => {
+      this.downloadEngine.pauseDownload(id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.RESUME_DOWNLOAD, async (_event, id: string) => {
+      this.downloadEngine.resumeDownload(id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.CANCEL_DOWNLOAD, async (_event, id: string) => {
+      this.downloadEngine.cancelDownload(id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.RETRY_DOWNLOAD, async (_event, id: string) => {
+      this.downloadEngine.retryDownload(id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_DOWNLOADS, async () => {
+      return this.downloadEngine.getActiveDownloads();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.MOVE_DOWNLOAD_UP, async (_event, id: string) => {
+      logger.debug("Move download up: " + id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.MOVE_DOWNLOAD_DOWN, async (_event, id: string) => {
+      logger.debug("Move download down: " + id);
+    });
+
+    // Queue
+    ipcMain.handle(IPC_CHANNELS.REORDER_QUEUE, async (_event, ids: string[]) => {
+      this.queueManager.reorderQueue(ids);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_QUEUE_STATUS, async () => {
+      return this.queueManager.getQueueStatus();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.CLEAR_QUEUE, async () => {
+      this.queueManager.clearQueue();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.CLEAR_COMPLETED, async () => {
+      logger.debug("Clear completed downloads");
+    });
+
+    ipcMain.handle(IPC_CHANNELS.CLEAR_FAILED, async () => {
+      logger.debug("Clear failed downloads");
+    });
+
+    // Converter
+    ipcMain.handle(IPC_CHANNELS.CONVERT_FILE, async (_event, task: Record<string, unknown>) => {
+      return this.converter.convertFile(task);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_CONVERSIONS, async () => {
+      return this.converter.getConversions();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.CANCEL_CONVERSION, async (_event, id: string) => {
+      this.converter.cancelConversion(id);
+    });
+
+    // History
+    ipcMain.handle(IPC_CHANNELS.GET_HISTORY, async (_event, search?: string, filter?: string) => {
+      const history = this.historyManager.getHistory();
+      let filtered = history;
+      if (search) {
+        const q = search.toLowerCase();
+        filtered = filtered.filter(
+          (h) =>
+            h.title.toLowerCase().includes(q) ||
+            h.url.toLowerCase().includes(q) ||
+            h.channel.toLowerCase().includes(q),
+        );
+      }
+      if (filter) {
+        filtered = filtered.filter((h) => h.outputFormat === filter);
+      }
+      return filtered;
+    });
+
+    ipcMain.handle(IPC_CHANNELS.DELETE_HISTORY, async (_event, id: string) => {
+      this.historyManager.deleteHistory(id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.CLEAR_HISTORY, async () => {
+      this.historyManager.clearHistory();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.EXPORT_HISTORY, async () => {
+      return this.historyManager.exportHistory();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.REDOWNLOAD, async (_event, id: string) => {
+      const entry = this.historyManager.getByDownloadId(id);
+      if (entry) {
+        return this.downloadEngine.startDownload({
+          url: entry.url,
+          title: entry.title,
+          outputFormat: entry.outputFormat,
+        });
+      }
+      throw new Error("History entry not found");
+    });
+
+    // Settings
+    ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, async () => {
+      return this.settings.getAll();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_SETTINGS, async (_event, settings: Record<string, unknown>) => {
+      this.settings.update(settings);
+    });
+
+    // FFmpeg
+    ipcMain.handle(IPC_CHANNELS.GET_FFMPEG_STATUS, async () => {
+      return this.ffmpeg.getStatus();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.SET_FFMPEG_PATH, async (_event, path: string) => {
+      this.ffmpeg.setFfmpegPath(path);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.DOWNLOAD_FFMPEG, async () => {
+      logger.info("Download FFmpeg requested");
+    });
+
+    // Network
+    ipcMain.handle(IPC_CHANNELS.GET_NETWORK_STATUS, async () => {
+      return { online: true, speed: 0 };
+    });
+
+    // App
+    ipcMain.handle(IPC_CHANNELS.GET_VERSION, async () => {
+      return app.getVersion();
+    });
+
+    // Updater
+    ipcMain.handle(IPC_CHANNELS.CHECK_FOR_UPDATES, async () => {
+      logger.info("Check for updates requested");
+    });
+
+    // Analytics
+    ipcMain.handle(IPC_CHANNELS.GET_ANALYTICS, async () => {
+      const db = this.database.getDb();
+      const totalDownloads = (db.prepare("SELECT COUNT(*) as count FROM downloads").get() as { count: number }).count;
+      const totalSize = (db.prepare("SELECT COALESCE(SUM(file_size), 0) as total FROM downloads").get() as { total: number }).total;
+      return {
+        totalDownloads,
+        downloadedSize: totalSize,
+        averageSpeed: 0,
+        mostUsedFormat: "mp4",
+        mostDownloadedChannel: "",
+      };
+    });
+
+    // Shell
+    ipcMain.handle(IPC_CHANNELS.OPEN_FOLDER, async (_event, path: string) => {
+      shell.openPath(path);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.OPEN_FILE, async (_event, path: string) => {
+      shell.openPath(path);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.REVEAL_IN_EXPLORER, async (_event, path: string) => {
+      shell.showItemInFolder(path);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_DISK_SPACE, async () => {
+      return { total: 0, free: 0, used: 0 };
+    });
+
+    // Scheduler
+    ipcMain.handle(IPC_CHANNELS.GET_SCHEDULED_TASKS, async () => {
+      return this.scheduler.getSchedules();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.ADD_SCHEDULED_TASK, async (_event, task: Record<string, unknown>) => {
+      return this.scheduler.addSchedule(task);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.UPDATE_SCHEDULED_TASK, async (_event, id: string, task: Record<string, unknown>) => {
+      this.scheduler.updateSchedule(id, task);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.DELETE_SCHEDULED_TASK, async (_event, id: string) => {
+      this.scheduler.deleteSchedule(id);
+    });
+
+    // Logs
+    ipcMain.handle(IPC_CHANNELS.GET_LOGS, async (_event, category?: string, level?: string) => {
+      const db = this.database.getDb();
+      let query = "SELECT * FROM logs WHERE 1=1";
+      const params: unknown[] = [];
+      if (level) {
+        query += " AND level = ?";
+        params.push(level);
+      }
+      if (category) {
+        query += " AND source = ?";
+        params.push(category);
+      }
+      query += " ORDER BY timestamp DESC";
+      return db.prepare(query).all(...params);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.EXPORT_LOGS, async () => {
+      const db = this.database.getDb();
+      const logs = db.prepare("SELECT * FROM logs ORDER BY timestamp DESC").all();
+      return JSON.stringify(logs, null, 2);
+    });
+
+    // Batch
+    ipcMain.handle(IPC_CHANNELS.BATCH_IMPORT, async (_event, urls: string[]) => {
+      for (const url of urls) {
+        this.downloadEngine.startDownload({ url });
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.BATCH_EXPORT, async (_event, ids: string[]) => {
+      return JSON.stringify(ids);
+    });
+
+    // Window controls
+    ipcMain.handle(IPC_CHANNELS.MINIMIZE_WINDOW, async () => {
+      this.window.minimize();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.MAXIMIZE_WINDOW, async () => {
+      if (this.window.isMaximized()) {
+        this.window.unmaximize();
+      } else {
+        this.window.maximize();
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.CLOSE_WINDOW, async () => {
+      this.window.close();
+    });
+
+    ipcMain.handle("select-directory", async () => {
+      const result = await dialog.showOpenDialog(this.window, {
+        properties: ["openDirectory"],
+      });
+      return result.canceled ? null : result.filePaths[0];
+    });
+
+    ipcMain.handle("select-file", async (_event, filters?: { name: string; extensions: string[] }[]) => {
+      const result = await dialog.showOpenDialog(this.window, {
+        properties: ["openFile"],
+        filters,
+      });
+      return result.canceled ? null : result.filePaths[0];
+    });
+  }
+
+  private async analyzeUrl(url: string): Promise<MediaInfo> {
+    const args = ["--dump-json", "--no-playlist", "--no-warnings", "--no-check-certificates", url];
+    const proc = this.ytDlp.execute(args);
+    const raw = await this.collectJson(proc);
+    return this.mapToMediaInfo(raw, "video");
+  }
+
+  private async analyzePlaylist(url: string): Promise<MediaInfo> {
+    const args = ["--dump-json", "--flat-playlist", "--no-warnings", "--no-check-certificates", url];
+    const proc = this.ytDlp.execute(args);
+    const entries = await this.collectJsonLines(proc);
+    // yt-dlp --flat-playlist returns an array of objects; wrap in { entries: [...] }
+    return this.mapPlaylistToMediaInfo({ entries }, url);
+  }
+
+  private collectJson(proc: import("child_process").ChildProcess): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      let stdout = "";
+      let stderr = "";
+      proc.stdout?.on("data", (data: Buffer) => { stdout += data.toString(); });
+      proc.stderr?.on("data", (data: Buffer) => { stderr += data.toString(); });
+      proc.on("close", (code) => {
+        if (code === 0) {
+          try { resolve(JSON.parse(stdout)); }
+          catch { reject(new Error("Failed to parse yt-dlp output")); }
+        } else {
+          reject(new Error(stderr || "yt-dlp failed with code " + String(code)));
+        }
+      });
+      proc.on("error", reject);
+    });
+  }
+
+  private collectJsonLines(proc: import("child_process").ChildProcess): Promise<Record<string, unknown>[]> {
+    return new Promise((resolve, reject) => {
+      let stdout = "";
+      let stderr = "";
+      proc.stdout?.on("data", (data: Buffer) => { stdout += data.toString(); });
+      proc.stderr?.on("data", (data: Buffer) => { stderr += data.toString(); });
+      proc.on("close", (code) => {
+        if (code === 0) {
+          try {
+            const lines = stdout.trim().split("\n").filter((l) => l.trim());
+            resolve(lines.map((l) => JSON.parse(l)));
+          } catch { reject(new Error("Failed to parse yt-dlp output")); }
+        } else {
+          reject(new Error(stderr || "yt-dlp failed with code " + String(code)));
+        }
+      });
+      proc.on("error", reject);
+    });
+  }
+
+  private mapToMediaInfo(raw: Record<string, unknown>, type: MediaType): MediaInfo {
+    const formats: MediaFormat[] = (raw.formats as Array<Record<string, unknown>> || []).map((f) => ({
+      formatId: String(f.format_id || ""),
+      extension: String(f.ext || ""),
+      resolution: f.resolution ? String(f.resolution) : undefined,
+      fps: f.fps ? Number(f.fps) : undefined,
+      vcodec: f.vcodec ? String(f.vcodec) : undefined,
+      acodec: f.acodec ? String(f.acodec) : undefined,
+      fileSize: f.filesize ? Number(f.filesize) : f.filesize_approx ? Number(f.filesize_approx) : undefined,
+      bitrate: f.tbr ? Number(f.tbr) : undefined,
+      quality: f.format_note ? String(f.format_note) : undefined,
+      type: (f.vcodec && f.vcodec !== "none" && f.acodec && f.acodec !== "none") ? "video+audio" :
+            (f.vcodec && f.vcodec !== "none") ? "video" : "audio",
+    }));
+
+    return {
+      url: String(raw.webpage_url || raw.url || ""),
+      title: String(raw.title || ""),
+      description: raw.description ? String(raw.description) : undefined,
+      thumbnail: String(raw.thumbnail || (Array.isArray(raw.thumbnails) && raw.thumbnails.length > 0 ? (raw.thumbnails[0] as Record<string, string>).url : "") || ""),
+      duration: Number(raw.duration || 0),
+      channel: String(raw.channel || raw.uploader || ""),
+      channelId: raw.channel_id ? String(raw.channel_id) : undefined,
+      uploadDate: raw.upload_date ? String(raw.upload_date) : undefined,
+      viewCount: raw.view_count ? Number(raw.view_count) : undefined,
+      likeCount: raw.like_count ? Number(raw.like_count) : undefined,
+      formats,
+      chapters: raw.chapters ? (raw.chapters as Array<Record<string, unknown>>).map((c) => ({
+        title: String(c.title || ""),
+        startTime: Number(c.start_time || 0),
+        endTime: Number(c.end_time || 0),
+      })) : undefined,
+      tags: raw.tags ? (raw.tags as string[]) : undefined,
+      type,
+      isLive: Boolean(raw.is_live),
+    };
+  }
+
+  private async mapPlaylistToMediaInfo(raw: Record<string, unknown>, url: string): Promise<MediaInfo> {
+    const entries = (raw.entries as Array<Record<string, unknown>>) || [];
+    const videos: PlaylistVideo[] = entries.map((e, i) => ({
+      id: String(e.id || e.url || `video-${i}`),
+      title: String(e.title || `Video ${i + 1}`),
+      thumbnail: String(e.thumbnail || (Array.isArray(e.thumbnails) && e.thumbnails.length > 0 ? (e.thumbnails[0] as Record<string, string>).url : "") || ""),
+      duration: Number(e.duration || 0),
+      url: e.url ? String(e.url) : `https://www.youtube.com/watch?v=${e.id}`,
+      selected: true,
+    }));
+
+    return {
+      url,
+      title: String(raw.title || raw.playlist_title || "Playlist"),
+      thumbnail: String(raw.thumbnail || ""),
+      duration: Number(raw.duration || 0),
+      channel: String(raw.channel || raw.uploader || ""),
+      formats: [],
+      type: "playlist",
+      playlist: {
+        id: String(raw.id || raw.playlist_id || ""),
+        title: String(raw.title || raw.playlist_title || "Playlist"),
+        channel: String(raw.channel || raw.uploader || ""),
+        thumbnail: String(raw.thumbnail || ""),
+        videoCount: videos.length,
+        videos,
+      },
+    };
+  }
+}
