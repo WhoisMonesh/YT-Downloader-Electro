@@ -24,8 +24,13 @@ export class ConverterManager {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const inputPath = options.inputPath || "";
+    let inputPath = options.inputPath || "";
     const outputFormat = options.outputFormat || "mp4";
+
+    // Validate input path
+    if (!inputPath) {
+      throw new Error("Input path is required");
+    }
 
     // Generate output path based on input
     const inputDir = dirname(inputPath);

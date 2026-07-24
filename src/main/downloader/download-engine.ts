@@ -13,6 +13,26 @@ import type { ChildProcess } from "child_process";
 
 const logger = new Logger("download-engine");
 
+function parseBytes(val: string, unit: string): number {
+  const num = parseFloat(val);
+  if (isNaN(num)) return 0;
+  const u = unit.trim().toUpperCase();
+  if (u.startsWith("K")) return Math.round(num * 1024);
+  if (u.startsWith("M")) return Math.round(num * 1024 * 1024);
+  if (u.startsWith("G")) return Math.round(num * 1024 * 1024 * 1024);
+  if (u.startsWith("T")) return Math.round(num * 1024 * 1024 * 1024 * 1024);
+  return Math.round(num);
+}
+
+function parseEta(etaStr: string): number {
+  const parts = etaStr.trim().split(":").map(Number);
+  if (parts.some(isNaN)) return 0;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 1) return parts[0];
+  return 0;
+}
+
 export class DownloadEngine {
   private ytDlp: YtDlpManager;
   private ffmpeg: FFmpegManager;
@@ -110,10 +130,15 @@ export class DownloadEngine {
     this.activeDownloads.set(id, { pid, process: proc, item });
 
     proc.stdout?.on("data", (data: Buffer) => {
-      const lines = data.toString().split("\n");
+      const lines = data.toString().split(/[\r\n]+/);
       for (const line of lines) {
         const progress = this.parseProgress(line);
         if (progress) {
+          if (progress.progress !== undefined) item.progress = progress.progress;
+          if (progress.speed !== undefined) item.speed = progress.speed;
+          if (progress.eta !== undefined) item.eta = progress.eta;
+          if (progress.downloadedSize !== undefined) item.downloadedSize = progress.downloadedSize;
+          if (progress.totalSize !== undefined) item.totalSize = progress.totalSize;
           this.broadcastProgress(id, progress);
         }
       }
@@ -181,10 +206,15 @@ export class DownloadEngine {
         this.activeDownloads.set(nextItem.id, { pid, process: proc, item: nextItem });
 
         proc.stdout?.on("data", (data: Buffer) => {
-          const lines = data.toString().split("\n");
+          const lines = data.toString().split(/[\r\n]+/);
           for (const line of lines) {
             const progress = this.parseProgress(line);
             if (progress) {
+              if (progress.progress !== undefined) nextItem.progress = progress.progress;
+              if (progress.speed !== undefined) nextItem.speed = progress.speed;
+              if (progress.eta !== undefined) nextItem.eta = progress.eta;
+              if (progress.downloadedSize !== undefined) nextItem.downloadedSize = progress.downloadedSize;
+              if (progress.totalSize !== undefined) nextItem.totalSize = progress.totalSize;
               this.broadcastProgress(nextItem.id, progress);
             }
           }
@@ -348,10 +378,34 @@ export class DownloadEngine {
       "--encoding", "utf-8",
       "--newline",
       "--progress",
+      "--no-continue", // Start fresh each time
     ];
 
-    const proxy = this.settings.get("proxy");
-    if (proxy.type !== "none" && proxy.host) {
+    // Apply format selection
+    const format = item.outputFormat?.toLowerCase() || "mp4";
+    const quality = item.quality || "best";
+
+    // Build format selector based on quality preference
+    if (quality === "best") {
+      args.push("-f", "bestvideo+bestaudio/best");
+    } else if (quality === "worst") {
+      args.push("-f", "worstvideo+worstaudio/worst");
+    } else {
+      // Specific quality (e.g., 1080p, 720p)
+      args.push("-f", `bestvideo[height<=${quality}]+bestaudio/best[height<=${quality}]`);
+    }
+
+    // Apply output format for merging
+    if (format === "mp3" || format === "aac" || format === "flac" || format === "ogg" || format === "wav" || format === "m4a" || format === "opus") {
+      // Audio-only extraction
+      args.push("-x", "--audio-format", format);
+    } else if (format === "mp4" || format === "mkv" || format === "webm" || format === "avi" || format === "mov" || format === "flv") {
+      // Video format - use specific container
+      args.push("--merge-output-format", format === "webm" ? "webm" : "mp4");
+    }
+
+    const proxy = this.settings.get("proxy") as { type: string; host: string; port: number };
+    if (proxy && proxy.type && proxy.type !== "none" && proxy.host) {
       args.push("--proxy", `${proxy.type}://${proxy.host}:${proxy.port}`);
     }
 
@@ -361,15 +415,113 @@ export class DownloadEngine {
     const referer = this.settings.get("referer");
     if (referer) args.push("--referer", referer);
 
-    args.push("-o", join(item.outputPath, "%(title)s [%(format_id)s].%(ext)s"));
+    // Provide FFmpeg location so yt-dlp can merge video+audio
+    const ffmpegPath = this.ffmpeg.getFfmpegPath();
+    if (ffmpegPath) {
+      args.push("--ffmpeg-location", ffmpegPath);
+    }
+
+    // 1. Time-Range Trimming (Clip Downloader)
+    if (item.startTime && item.endTime) {
+      // yt-dlp uses regex for download sections: *start-end
+      args.push("--download-sections", `*${item.startTime}-${item.endTime}`);
+    }
+
+    // 5. Advanced Subtitle Options (Embed)
+    // We check the active profile for subtitle preferences, assuming settings-manager holds them or we check global toggle
+    const embedSubs = this.settings.get("embedMetadata"); // We can use this as a proxy for now or check profile
+    if (embedSubs) {
+      args.push("--write-subs", "--embed-subs");
+    }
+
+    // 8. Network Speed Limiter
+    const maxSpeed = this.settings.get("maxSpeed");
+    if (maxSpeed && maxSpeed > 0) {
+      args.push("--limit-rate", `${maxSpeed}K`); // assuming maxSpeed is in KB/s
+    }
+
+    // 9. Automatic Thumbnail & Cover Art Embedding
+    const embedThumb = this.settings.get("embedThumbnail");
+    if (embedThumb) {
+      args.push("--embed-thumbnail");
+    }
+
+    // 6. Per-Download Custom Filename
+    let rawTemplate = item.customFilename || this.settings.get("filenameTemplate") || "{title}";
+    const outputTemplate = this.convertTemplateToYtDlp(rawTemplate);
+    args.push("-o", join(item.outputPath, outputTemplate));
+
     args.push(item.url);
     return args;
   }
 
+  private convertTemplateToYtDlp(tmpl: string): string {
+    let converted = (tmpl || "{title}").trim();
+    // Strip out {ext} first so it doesn't leave trailing dots behind later
+    converted = converted.replace(/\.?\{ext\}/gi, "");
+    
+    // Convert friendly placeholders to yt-dlp syntax
+    converted = converted
+      .replace(/\{title\}/gi, "%(title)s")
+      .replace(/\{quality\}/gi, "%(height)s")
+      .replace(/\{height\}/gi, "%(height)s")
+      .replace(/\{id\}/gi, "%(id)s")
+      .replace(/\{channel\}/gi, "%(uploader)s")
+      .replace(/\{uploader\}/gi, "%(uploader)s")
+      .replace(/\[\s*%\(format_id\)s\s*\]/gi, "")
+      .replace(/%\(format_id\)s/gi, "");
+
+    // Strip trailing .%(ext)s or .ext if present
+    converted = converted.replace(/\.%\(ext\)s$/i, "").replace(/\.ext$/i, "").trim();
+
+    // Clean up empty brackets
+    converted = converted.replace(/\[\s*\]/g, "").replace(/\(\s*\)/g, "").trim();
+    
+    // Clean up trailing dots, spaces, dashes
+    converted = converted.replace(/[\.\-\s]+$/, "").trim();
+
+    if (!converted) converted = "%(title)s";
+
+    return `${converted}.%(ext)s`;
+  }
+
   private parseProgress(line: string): Partial<DownloadProgress> | null {
-    const match = line.match(/(\d+\.?\d*)%/);
-    if (!match) return null;
-    return { progress: parseFloat(match[1]) };
+    const trimmed = line.trim();
+    if (!trimmed.includes("%")) return null;
+
+    const percentMatch = trimmed.match(/(\d+(?:\.\d+)?)%/);
+    if (!percentMatch) return null;
+
+    const result: Partial<DownloadProgress> = {
+      progress: parseFloat(percentMatch[1]),
+    };
+
+    // Size match: e.g. "12.34MiB of ~50.00MiB" or "12.34MiB of 50.00MiB"
+    const dualSizeMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*([KMGTP]?i?B)\s+of\s+~?(\d+(?:\.\d+)?)\s*([KMGTP]?i?B)/i);
+    if (dualSizeMatch) {
+      result.downloadedSize = parseBytes(dualSizeMatch[1], dualSizeMatch[2]);
+      result.totalSize = parseBytes(dualSizeMatch[3], dualSizeMatch[4]);
+    } else {
+      const totalOnlyMatch = trimmed.match(/of\s+~?(\d+(?:\.\d+)?)\s*([KMGTP]?i?B)/i);
+      if (totalOnlyMatch) {
+        result.totalSize = parseBytes(totalOnlyMatch[1], totalOnlyMatch[2]);
+        result.downloadedSize = Math.round(((result.progress || 0) / 100) * result.totalSize);
+      }
+    }
+
+    // Speed match: e.g. "at 1.25MiB/s" or "at 500.00KiB/s" or "at 100B/s"
+    const speedMatch = trimmed.match(/at\s+(\d+(?:\.\d+)?)\s*([KMGTP]?i?B\/s)/i);
+    if (speedMatch) {
+      result.speed = parseBytes(speedMatch[1], speedMatch[2].replace(/\/s$/i, ""));
+    }
+
+    // ETA match: e.g. "ETA 01:32" or "ETA 00:05:30"
+    const etaMatch = trimmed.match(/ETA\s+(\d{1,2}:\d{2}(?::\d{2})?)/i);
+    if (etaMatch) {
+      result.eta = parseEta(etaMatch[1]);
+    }
+
+    return result;
   }
 
   private broadcastProgress(id: string, progress: Partial<DownloadProgress>): void {

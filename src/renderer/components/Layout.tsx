@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../store/useAppStore";
+import toast from "react-hot-toast";
 
 const navItems = [
   { path: "/", label: "Home", icon: "home" },
@@ -29,28 +30,137 @@ export default function Layout() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    // Get FFmpeg status
-    window.electronAPI.getFfmpegStatus().then(setFfmpegStatus).catch(() => {});
-
-    // Get disk space
-    window.electronAPI.getDiskSpace().then(setDiskSpace).catch(() => {});
-
-    // Get queue info
-    window.electronAPI.getQueueInfo().then(setQueueInfo).catch(() => {});
-
-    // Set up interval for updates
-    const interval = setInterval(() => {
-      window.electronAPI.getDiskSpace().then(setDiskSpace).catch(() => {});
-      window.electronAPI.getQueueInfo().then(setQueueInfo).catch(() => {});
-      setCurrentTime(new Date());
-    }, 30000);
-
-    return () => clearInterval(interval);
+    console.log("Layout mounted, electronAPI:", typeof window.electronAPI !== "undefined");
   }, []);
 
+  useEffect(() => {
+
+    // Get FFmpeg status
+    if (window.electronAPI?.getFfmpegStatus) {
+      window.electronAPI.getFfmpegStatus().then(setFfmpegStatus).catch(() => {});
+    }
+
+    // Get disk space
+    if (window.electronAPI?.getDiskSpace) {
+      window.electronAPI.getDiskSpace().then(setDiskSpace).catch(() => {});
+    }
+
+    // Get queue info
+    if (window.electronAPI?.getQueueInfo) {
+      window.electronAPI.getQueueInfo().then(setQueueInfo).catch(() => {});
+    }
+
+    // Set up live clock timer (1s)
+    const clockInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    // Set up disk & queue polling interval (10s)
+    const pollInterval = setInterval(() => {
+      if (window.electronAPI?.getDiskSpace) {
+        window.electronAPI.getDiskSpace().then(setDiskSpace).catch(() => {});
+      }
+      if (window.electronAPI?.getQueueInfo) {
+        window.electronAPI.getQueueInfo().then(setQueueInfo).catch(() => {});
+      }
+    }, 10000);
+
+    // Setup menu event listeners
+    let cleanupNewDownload: (() => void) | undefined;
+    let cleanupOpenSettings: (() => void) | undefined;
+    let cleanupNavigate: (() => void) | undefined;
+    let cleanupPauseAll: (() => void) | undefined;
+    let cleanupResumeAll: (() => void) | undefined;
+    let cleanupClearCompleted: (() => void) | undefined;
+    let cleanupCheckUpdates: (() => void) | undefined;
+    let cleanupOpenDownloadsFolder: (() => void) | undefined;
+
+    if (window.electronAPI?.onMenuNewDownload) {
+      cleanupNewDownload = window.electronAPI.onMenuNewDownload(() => {
+        navigate("/");
+      });
+    }
+
+    if (window.electronAPI?.onMenuOpenSettings) {
+      cleanupOpenSettings = window.electronAPI.onMenuOpenSettings(() => {
+        navigate("/settings");
+      });
+    }
+
+    if (window.electronAPI?.onMenuNavigate) {
+      cleanupNavigate = window.electronAPI.onMenuNavigate((path) => {
+        navigate(path);
+      });
+    }
+
+    if (window.electronAPI?.onMenuPauseAll) {
+      cleanupPauseAll = window.electronAPI.onMenuPauseAll(async () => {
+        if (window.electronAPI?.pauseAllDownloads) {
+          await window.electronAPI.pauseAllDownloads();
+          toast.success("All downloads paused");
+        }
+      });
+    }
+
+    if (window.electronAPI?.onMenuResumeAll) {
+      cleanupResumeAll = window.electronAPI.onMenuResumeAll(async () => {
+        if (window.electronAPI?.resumeAllDownloads) {
+          await window.electronAPI.resumeAllDownloads();
+          toast.success("All downloads resumed");
+        }
+      });
+    }
+
+    if (window.electronAPI?.onMenuClearCompleted) {
+      cleanupClearCompleted = window.electronAPI.onMenuClearCompleted(async () => {
+        if (window.electronAPI?.clearCompleted) {
+          await window.electronAPI.clearCompleted();
+          toast.success("Completed downloads cleared");
+        }
+      });
+    }
+
+    if (window.electronAPI?.onMenuCheckUpdates) {
+      cleanupCheckUpdates = window.electronAPI.onMenuCheckUpdates(async () => {
+        if (window.electronAPI?.checkForUpdates) {
+          await window.electronAPI.checkForUpdates();
+          toast.success("Checking for updates...");
+        }
+      });
+    }
+
+    if (window.electronAPI?.onMenuNavigate) {
+      cleanupOpenDownloadsFolder = window.electronAPI.onMenuNavigate((path) => {
+        if (path === "/open-downloads-folder" && window.electronAPI?.openDownloadsFolder) {
+          window.electronAPI.openDownloadsFolder();
+        }
+      });
+    }
+
+    return () => {
+      clearInterval(clockInterval);
+      clearInterval(pollInterval);
+      cleanupNewDownload?.();
+      cleanupOpenSettings?.();
+      cleanupNavigate?.();
+      cleanupPauseAll?.();
+      cleanupResumeAll?.();
+      cleanupClearCompleted?.();
+      cleanupCheckUpdates?.();
+      cleanupOpenDownloadsFolder?.();
+    };
+  }, [navigate]);
+
+  const [isMaximized, setIsMaximized] = useState(false);
+
   const handleMinimize = useCallback(() => window.electronAPI?.minimizeWindow?.(), []);
-  const handleMaximize = useCallback(() => window.electronAPI?.maximizeWindow?.(), []);
+  const handleMaximize = useCallback(async () => {
+    await window.electronAPI?.maximizeWindow?.();
+    const maximized = await window.electronAPI?.isMaximized?.();
+    setIsMaximized(maximized || false);
+  }, []);
   const handleClose = useCallback(() => window.electronAPI?.closeWindow?.(), []);
+  const handleNavigate = useCallback((path: string) => navigate(path), [navigate]);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return "0 B";
@@ -61,7 +171,7 @@ export default function Layout() {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   };
 
   // Calculate disk usage percentage
@@ -70,7 +180,7 @@ export default function Layout() {
     : 0;
 
   return (
-    <div className="h-screen flex flex-col bg-surface-300">
+    <div className="h-screen flex flex-col bg-surface-100">
       {/* Title Bar */}
       <div className="title-bar">
         <div className="flex items-center gap-2 no-drag">
@@ -114,7 +224,10 @@ export default function Layout() {
               return (
                 <button
                   key={item.path}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => {
+                    console.log("Sidebar click:", item.path);
+                    navigate(item.path);
+                  }}
                   className={`sidebar-item w-full ${isActive ? "active" : ""}`}
                   title={sidebarCollapsed ? item.label : undefined}
                 >
@@ -133,7 +246,7 @@ export default function Layout() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-6">
+          <div className="p-6" key={location.pathname}>
             <Outlet />
           </div>
         </main>

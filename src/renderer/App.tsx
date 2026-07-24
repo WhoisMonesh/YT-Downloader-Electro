@@ -9,10 +9,43 @@ import SettingsPage from "./pages/SettingsPage";
 import ConverterPage from "./pages/ConverterPage";
 import SchedulerPage from "./pages/SchedulerPage";
 import QueuePage from "./pages/QueuePage";
+import { useEffect } from "react";
+
+function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error("Global error:", event.error);
+    };
+    window.addEventListener("error", handleError);
+    return () => window.removeEventListener("error", handleError);
+  }, []);
+
+  return <>{children}</>;
+}
 
 export default function App() {
+  useEffect(() => {
+    console.log("App mounted");
+    console.log("electronAPI available:", typeof window.electronAPI !== "undefined");
+    if (typeof window.electronAPI !== "undefined") {
+      console.log("electronAPI methods:", Object.keys(window.electronAPI));
+      
+      // Load initial settings for global theme
+      window.electronAPI.getSettings().then(settings => {
+        if (settings?.theme) {
+          const root = document.documentElement;
+          if (settings.theme === "light") {
+            root.setAttribute("data-theme", "light");
+          } else {
+            root.removeAttribute("data-theme");
+          }
+        }
+      });
+    }
+  }, []);
+
   return (
-    <>
+    <ErrorBoundary>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -37,6 +70,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-    </>
+    </ErrorBoundary>
   );
 }

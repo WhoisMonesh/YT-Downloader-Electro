@@ -372,19 +372,88 @@ export class IpcHandler {
       this.window.close();
     });
 
-    ipcMain.handle("select-directory", async () => {
+    ipcMain.handle(IPC_CHANNELS.SELECT_DIRECTORY, async () => {
       const result = await dialog.showOpenDialog(this.window, {
         properties: ["openDirectory"],
       });
       return result.canceled ? null : result.filePaths[0];
     });
 
-    ipcMain.handle("select-file", async (_event, filters?: { name: string; extensions: string[] }[]) => {
+    ipcMain.handle(IPC_CHANNELS.SELECT_FILE, async (_event, filters?: { name: string; extensions: string[] }[]) => {
       const result = await dialog.showOpenDialog(this.window, {
         properties: ["openFile"],
         filters,
       });
       return result.canceled ? null : result.filePaths[0];
+    });
+
+    // Download with full options
+    ipcMain.handle("download-with-options", async (_event, options: Record<string, unknown>) => {
+      return this.downloadEngine.startDownload(options);
+    });
+
+    // Pause all downloads
+    ipcMain.handle("pause-all-downloads", async () => {
+      const downloads = this.downloadEngine.getActiveDownloads();
+      for (const d of downloads) {
+        if (d.status === "downloading") {
+          this.downloadEngine.pauseDownload(d.id);
+        }
+      }
+      return { success: true };
+    });
+
+    // Resume all downloads
+    ipcMain.handle("resume-all-downloads", async () => {
+      const downloads = this.downloadEngine.getActiveDownloads();
+      for (const d of downloads) {
+        if (d.status === "paused") {
+          this.downloadEngine.resumeDownload(d.id);
+        }
+      }
+      return { success: true };
+    });
+
+    // Get all downloads (including queued)
+    ipcMain.handle("get-all-downloads", async () => {
+      return this.downloadEngine.getAllDownloads();
+    });
+
+    // Retry failed downloads
+    ipcMain.handle("retry-failed-downloads", async () => {
+      const downloads = this.downloadEngine.getActiveDownloads();
+      for (const d of downloads) {
+        if (d.status === "failed") {
+          this.downloadEngine.retryDownload(d.id);
+        }
+      }
+      return { success: true };
+    });
+
+    // Open downloads folder
+    ipcMain.handle("open-downloads-folder", async () => {
+      const downloadFolder = this.settings.get("downloadFolder");
+      shell.openPath(downloadFolder);
+    });
+
+    // Is maximized
+    ipcMain.handle(IPC_CHANNELS.IS_MAXIMIZED, async () => {
+      return this.window.isMaximized();
+    });
+
+    // Show application menu
+    ipcMain.handle("show-app-menu", async () => {
+      const { Menu } = require("electron");
+      const menu = Menu.getApplicationMenu();
+      if (menu) {
+        menu.popup({ window: this.window });
+      }
+    });
+
+    // Get app path
+    ipcMain.handle("get-app-path", async () => {
+      const { app } = require("electron");
+      return app.getPath("userData");
     });
   }
 

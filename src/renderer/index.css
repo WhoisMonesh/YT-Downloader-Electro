@@ -88,12 +88,6 @@
 }
 
 @layer components {
-  .glass {
-    background: rgba(17, 17, 19, 0.7);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(39, 39, 42, 0.5);
-  }
-
   .glass-panel {
     background: rgba(17, 17, 19, 0.7);
     backdrop-filter: blur(12px);
@@ -161,11 +155,24 @@
 
   .sidebar-item {
     @apply flex items-center gap-3 px-3 py-2 rounded-lg text-accent-400 text-sm
-      hover:bg-accent-900/50 hover:text-accent-200 transition-all duration-150;
+      hover:bg-accent-900/50 hover:text-accent-200 transition-all duration-150 cursor-pointer;
+    pointer-events: auto;
+    position: relative;
+    z-index: 10;
   }
 
   .sidebar-item.active {
     @apply bg-blue/10 text-blue border border-blue/20;
+  }
+
+  aside {
+    position: relative;
+    z-index: 20;
+  }
+
+  main {
+    position: relative;
+    z-index: 10;
   }
 
   .progress-ring-circle {

@@ -36,13 +36,13 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="glass rounded-2xl p-4">
+      <div className="glass-panel p-4">
         <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search history..."
           className="w-full h-10 px-4 rounded-lg bg-accent-900/50 border border-accent-800 text-accent-50 placeholder-accent-600 focus:outline-none focus:ring-2 focus:ring-blue/50 text-sm" />
       </div>
 
       {history.length === 0 ? (
-        <div className="glass rounded-2xl p-12 text-center">
+        <div className="glass-panel p-12 text-center">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-accent-700">
             <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
           </svg>
@@ -52,7 +52,7 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-2">
           {history.map((item) => (
-            <div key={item.id} className="glass rounded-xl p-4 flex items-center gap-4">
+            <div key={item.id} className="glass-panel p-4 flex items-center gap-4">
               {item.thumbnail ? (
                 <img src={item.thumbnail} alt="" className="w-20 h-12 object-cover rounded-lg flex-shrink-0" />
               ) : (

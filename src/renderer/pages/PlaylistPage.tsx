@@ -40,7 +40,7 @@ export default function PlaylistPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-accent-50">Playlist Downloader</h1>
-      <div className="glass rounded-2xl p-6 space-y-4">
+      <div className="glass-panel p-6 space-y-4">
         <div className="flex gap-3">
           <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAnalyze()} placeholder="Paste playlist URL..."
             className="flex-1 h-12 px-4 rounded-xl bg-accent-900/50 border border-accent-800 text-accent-50 placeholder-accent-600 focus:outline-none focus:ring-2 focus:ring-blue/50" />

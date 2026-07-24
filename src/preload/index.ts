@@ -222,6 +222,82 @@ const electronAPI = {
     ipcRenderer.on(IPC_CHANNELS.NOTIFICATION_CLICKED, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.NOTIFICATION_CLICKED, handler);
   },
+
+  // Additional methods for premium features
+  downloadWithOptions: (options: Record<string, unknown>): Promise<DownloadItem> =>
+    ipcRenderer.invoke("download-with-options", options),
+
+  pauseAllDownloads: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke("pause-all-downloads"),
+
+  resumeAllDownloads: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke("resume-all-downloads"),
+
+  getAllDownloads: (): Promise<DownloadItem[]> =>
+    ipcRenderer.invoke("get-all-downloads"),
+
+  retryFailedDownloads: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke("retry-failed-downloads"),
+
+  openDownloadsFolder: (): Promise<void> =>
+    ipcRenderer.invoke("open-downloads-folder"),
+
+  isMaximized: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.IS_MAXIMIZED),
+
+  onMenuNewDownload: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("menu-new-download", handler);
+    return () => ipcRenderer.removeListener("menu-new-download", handler);
+  },
+
+  onMenuOpenSettings: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("menu-open-settings", handler);
+    return () => ipcRenderer.removeListener("menu-open-settings", handler);
+  },
+
+  onMenuNavigate: (callback: (path: string) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, path: string) => callback(path);
+    ipcRenderer.on("menu-navigate", handler);
+    return () => ipcRenderer.removeListener("menu-navigate", handler);
+  },
+
+  onMenuPauseAll: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("menu-pause-all", handler);
+    return () => ipcRenderer.removeListener("menu-pause-all", handler);
+  },
+
+  onMenuResumeAll: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("menu-resume-all", handler);
+    return () => ipcRenderer.removeListener("menu-resume-all", handler);
+  },
+
+  onMenuClearCompleted: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("menu-clear-completed", handler);
+    return () => ipcRenderer.removeListener("menu-clear-completed", handler);
+  },
+
+  onMenuToggleClipboard: (callback: (enabled: boolean) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, enabled: boolean) => callback(enabled);
+    ipcRenderer.on("menu-toggle-clipboard", handler);
+    return () => ipcRenderer.removeListener("menu-toggle-clipboard", handler);
+  },
+
+  onMenuCheckUpdates: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("menu-check-updates", handler);
+    return () => ipcRenderer.removeListener("menu-check-updates", handler);
+  },
+
+  showAppMenu: (): Promise<void> =>
+    ipcRenderer.invoke("show-app-menu"),
+
+  getAppPath: (): Promise<string> =>
+    ipcRenderer.invoke("get-app-path"),
 };
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI);

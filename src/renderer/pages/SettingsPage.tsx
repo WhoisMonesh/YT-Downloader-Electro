@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<'general' | 'downloads' | 'network' | 'advanced'>('general');
 
   useEffect(() => { window.electronAPI.getSettings().then(setSettings); }, []);
 
@@ -79,7 +80,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-accent-100">Settings</h1>
@@ -113,7 +114,25 @@ export default function SettingsPage() {
         </button>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b border-accent-900/30 pb-2">
+        {(['general', 'downloads', 'network', 'advanced'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === tab
+                ? "bg-blue/20 text-blue"
+                : "text-accent-400 hover:text-accent-200 hover:bg-accent-900/30"
+            }`}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
+
       {/* Appearance Section */}
+      {activeTab === 'general' && (
       <div className="glass-panel rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-accent-900/30">
           <div className="flex items-center gap-2">
@@ -144,8 +163,10 @@ export default function SettingsPage() {
           </SettingRow>
         </div>
       </div>
+      )}
 
       {/* Downloads Section */}
+      {activeTab === 'downloads' && (
       <div className="glass-panel rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-accent-900/30">
           <div className="flex items-center gap-2">
@@ -208,8 +229,10 @@ export default function SettingsPage() {
           </SettingRow>
         </div>
       </div>
+      )}
 
       {/* Network Section */}
+      {activeTab === 'network' && (
       <div className="glass-panel rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-accent-900/30">
           <div className="flex items-center gap-2">
@@ -257,8 +280,10 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Behavior Section */}
+      {activeTab === 'general' && (
       <div className="glass-panel rounded-2xl overflow-hidden">
         <div className="px-5 py-4 border-b border-accent-900/30">
           <div className="flex items-center gap-2">
@@ -302,6 +327,7 @@ export default function SettingsPage() {
           </SettingRow>
         </div>
       </div>
+      )}
     </div>
   );
 }

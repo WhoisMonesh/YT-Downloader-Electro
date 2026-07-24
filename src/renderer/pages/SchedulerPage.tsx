@@ -27,7 +27,7 @@ export default function SchedulerPage() {
       </div>
 
       {showForm && (
-        <div className="glass rounded-2xl p-6 space-y-4 animate-fade-in">
+        <div className="glass-panel p-6 space-y-4 animate-fade-in">
           <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Task name"
             className="w-full h-10 px-4 rounded-lg bg-accent-900/50 border border-accent-800 text-accent-50 placeholder-accent-600 focus:outline-none focus:ring-2 focus:ring-blue/50 text-sm" />
           <input type="text" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="URL"
@@ -52,11 +52,11 @@ export default function SchedulerPage() {
 
       <div className="space-y-3">
         {tasks.length === 0 ? (
-          <div className="glass rounded-2xl p-12 text-center">
+          <div className="glass-panel p-12 text-center">
             <p className="text-accent-500">No scheduled tasks</p>
           </div>
         ) : tasks.map((t) => (
-          <div key={t.id} className="glass rounded-xl p-4">
+          <div key={t.id} className="glass-panel p-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-accent-50">{t.name}</h3>

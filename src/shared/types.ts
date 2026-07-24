@@ -295,6 +295,9 @@ export interface DownloadItem {
   error?: string;
   isPlaylist: boolean;
   playlistId?: string;
+  customFilename?: string;
+  startTime?: string;
+  endTime?: string;
   retries: number;
   maxRetries: number;
   metadata?: DownloadMetadata;

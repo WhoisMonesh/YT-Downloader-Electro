@@ -4,6 +4,7 @@ import type { OutputFormat } from "../../shared/types";
 
 interface FileItem {
   name: string;
+  path?: string;
   size: number;
   status: "pending" | "converting" | "completed" | "error";
   progress?: number;
@@ -16,22 +17,54 @@ export default function ConverterPage() {
   const [converting, setConverting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleSelect = useCallback(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.multiple = true;
-    input.accept = "video/*,audio/*";
-    input.onchange = () => {
-      if (input.files) {
-        const newFiles = Array.from(input.files).map((f) => ({
-          name: f.name,
-          size: f.size,
+  const handleSelect = useCallback(async () => {
+    try {
+      const filePath = await window.electronAPI.selectFile([
+        { name: "Media Files", extensions: ["mp4", "mkv", "avi", "mov", "webm", "flv", "mp3", "flac", "aac", "ogg", "wav", "m4a", "opus"] }
+      ]);
+      if (filePath) {
+        const fileName = filePath.split(/[\\/]/).pop() || filePath;
+        // Add the file with the path - backend will handle the actual conversion
+        setFiles((prev) => [...prev, {
+          name: fileName,
+          path: filePath,
+          size: 0,
           status: "pending" as const,
-        }));
-        setFiles((prev) => [...prev, ...newFiles]);
+        }]);
       }
-    };
-    input.click();
+    } catch (err) {
+      console.error("Failed to select file:", err);
+    }
+  }, []);
+
+  // Also support drag and drop
+  const handleDrop = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(
+      (f) => f.type.startsWith("video/") || f.type.startsWith("audio/")
+    );
+    if (droppedFiles.length > 0) {
+      const newFiles = droppedFiles.map((f) => ({
+        name: f.name,
+        path: (f as any).path || f.name,
+        size: f.size,
+        status: "pending" as const,
+      }));
+      setFiles((prev) => [...prev, ...newFiles]);
+    }
+  }, []);
+
+  // Handle file paths from the backend
+  const handleFilePath = useCallback(async (filePath: string) => {
+    if (!filePath) return;
+    const fileName = filePath.split(/[\\/]/).pop() || filePath;
+    setFiles((prev) => [...prev, {
+      name: fileName,
+      path: filePath,
+      size: 0,
+      status: "pending" as const,
+    }]);
   }, []);
 
   const handleDragOver = useCallback((e: DragEvent) => {
@@ -42,22 +75,6 @@ export default function ConverterPage() {
   const handleDragLeave = useCallback((e: DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const droppedFiles = Array.from(e.dataTransfer.files).filter(
-      (f) => f.type.startsWith("video/") || f.type.startsWith("audio/")
-    );
-    if (droppedFiles.length > 0) {
-      const newFiles = droppedFiles.map((f) => ({
-        name: f.name,
-        size: f.size,
-        status: "pending" as const,
-      }));
-      setFiles((prev) => [...prev, ...newFiles]);
-    }
   }, []);
 
   const removeFile = useCallback((index: number) => {
@@ -75,6 +92,20 @@ export default function ConverterPage() {
     for (let i = 0; i < files.length; i++) {
       if (files[i].status !== "pending") continue;
 
+      const inputPath = files[i].path || files[i].name;
+      if (!inputPath) {
+        setFiles((prev) => {
+          const updated = [...prev];
+          updated[i] = {
+            ...updated[i],
+            status: "error",
+            error: "No file path available",
+          };
+          return updated;
+        });
+        continue;
+      }
+
       setFiles((prev) => {
         const updated = [...prev];
         updated[i] = { ...updated[i], status: "converting", progress: 0 };
@@ -82,9 +113,10 @@ export default function ConverterPage() {
       });
 
       try {
+        const inputName = inputPath.replace(/\.[^.]+$/, '');
         await window.electronAPI.convertFile({
-          inputPath: files[i].name,
-          outputPath: files[i].name.replace(/\.[^.]+$/, `.${format}`),
+          inputPath: inputPath,
+          outputPath: `${inputName}_converted.${format}`,
           outputFormat: format,
         });
         setFiles((prev) => {

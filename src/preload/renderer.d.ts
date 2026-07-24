@@ -92,6 +92,27 @@ export interface Api {
 
   selectDirectory: () => Promise<string | null>;
   selectFile: (filters?: { name: string; extensions: string[] }[]) => Promise<string | null>;
+
+  // Premium features
+  downloadWithOptions: (options: Record<string, unknown>) => Promise<DownloadItem>;
+  pauseAllDownloads: () => Promise<{ success: boolean }>;
+  resumeAllDownloads: () => Promise<{ success: boolean }>;
+  getAllDownloads: () => Promise<DownloadItem[]>;
+  retryFailedDownloads: () => Promise<{ success: boolean }>;
+  openDownloadsFolder: () => Promise<void>;
+  isMaximized: () => Promise<boolean>;
+
+  // Menu events
+  onMenuNewDownload: (callback: () => void) => () => void;
+  onMenuOpenSettings: (callback: () => void) => () => void;
+  onMenuNavigate: (callback: (path: string) => void) => () => void;
+  onMenuPauseAll: (callback: () => void) => () => void;
+  onMenuResumeAll: (callback: () => void) => () => void;
+  onMenuClearCompleted: (callback: () => void) => () => void;
+  onMenuToggleClipboard: (callback: (enabled: boolean) => void) => () => void;
+  onMenuCheckUpdates: (callback: () => void) => () => void;
+  showAppMenu: () => Promise<void>;
+  getAppPath: () => Promise<string>;
 }
 
 declare global {
