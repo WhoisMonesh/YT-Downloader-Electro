@@ -446,6 +446,20 @@ export class DownloadEngine {
       args.push("--embed-thumbnail");
     }
 
+    // 7. Audio Volume Normalization
+    if (item.normalizeAudio) {
+      args.push("--postprocessor-args", "-af loudnorm=I=-16:TP=-1.5:LRA=11");
+    }
+
+    // 13. Audio Metadata Tag Editor
+    if (item.metadata) {
+      args.push("--parse-metadata", "NA:%(title)s");
+      if (item.metadata.title) args.push("--replace-in-metadata", "title", ".*", item.metadata.title);
+      if (item.metadata.artist) args.push("--replace-in-metadata", "artist", ".*", item.metadata.artist);
+      if (item.metadata.album) args.push("--replace-in-metadata", "album", ".*", item.metadata.album);
+      if (item.metadata.year) args.push("--replace-in-metadata", "date", ".*", item.metadata.year);
+    }
+
     // 6. Per-Download Custom Filename
     let rawTemplate = item.customFilename || this.settings.get("filenameTemplate") || "{title}";
     const outputTemplate = this.convertTemplateToYtDlp(rawTemplate);

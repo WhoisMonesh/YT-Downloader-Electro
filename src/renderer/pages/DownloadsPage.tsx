@@ -375,10 +375,9 @@ export default function DownloadsPage() {
                         </>
                       )}
                       {item.status === "completed" && (
+                        <>
                           <button 
                             onClick={() => {
-                              // We can open it natively if electron API supports opening files directly, 
-                              // or we can invoke the media player modal. We'll invoke native system player for now.
                               window.electronAPI.openFile?.(item.outputPath);
                             }} 
                             className="btn-ghost text-xs text-green flex items-center gap-1"
@@ -393,6 +392,7 @@ export default function DownloadsPage() {
                           <button onClick={() => window.electronAPI.cancelDownload(item.id).then(refresh)} className="btn-ghost text-xs text-red flex items-center gap-1">
                             Remove
                           </button>
+                        </>
                       )}
                     </div>
                   </div>

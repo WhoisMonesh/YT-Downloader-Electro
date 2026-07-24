@@ -83,7 +83,7 @@ export default function HomePage() {
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: DragEvent) => {
+  const handleDrop = useCallback(async (e: DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const text = e.dataTransfer.getData("text");
@@ -94,8 +94,18 @@ export default function HomePage() {
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
-        // Handle file drop - could add file conversion feature
+      if (file.name.endsWith(".txt")) {
+        const textData = await file.text();
+        const urls = textData.split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith("http://") || l.startsWith("https://"));
+        if (urls.length > 0) {
+          try {
+            await window.electronAPI.batchImport(urls);
+            // navigate to downloads or show a toast? Let's just reset the form.
+            setUrl("");
+          } catch (e) {
+            console.error("Batch import failed:", e);
+          }
+        }
       }
     }
   }, []);
@@ -277,12 +287,49 @@ export default function HomePage() {
                   <input type="text" id="trimEndInput" placeholder="00:02:30" className="input-field w-full text-sm py-1.5" />
                 </div>
               </div>
+
+              {isAudio && (
+                <div className="space-y-3 pt-2 border-t border-accent-900/50">
+                  <h5 className="text-xs font-semibold text-accent-300">Audio Options</h5>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input type="checkbox" id="normalizeAudioInput" className="rounded bg-surface-300 border-border text-blue focus:ring-blue" />
+                    <label htmlFor="normalizeAudioInput" className="text-xs text-accent-400">Normalize Audio Volume</label>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] text-accent-400 mb-1 uppercase tracking-wider">Artist</label>
+                      <input type="text" id="metaArtistInput" placeholder="Artist Name" className="input-field w-full text-xs py-1" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-accent-400 mb-1 uppercase tracking-wider">Album</label>
+                      <input type="text" id="metaAlbumInput" placeholder="Album Name" className="input-field w-full text-xs py-1" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-accent-400 mb-1 uppercase tracking-wider">Year</label>
+                      <input type="text" id="metaYearInput" placeholder="YYYY" className="input-field w-full text-xs py-1" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button onClick={() => {
               const customFilename = (document.getElementById("customFilenameInput") as HTMLInputElement)?.value;
               const startTime = (document.getElementById("trimStartInput") as HTMLInputElement)?.value;
               const endTime = (document.getElementById("trimEndInput") as HTMLInputElement)?.value;
+              
+              let normalizeAudio = false;
+              let metadata: any = undefined;
+
+              if (isAudio) {
+                normalizeAudio = (document.getElementById("normalizeAudioInput") as HTMLInputElement)?.checked;
+                const artist = (document.getElementById("metaArtistInput") as HTMLInputElement)?.value;
+                const album = (document.getElementById("metaAlbumInput") as HTMLInputElement)?.value;
+                const year = (document.getElementById("metaYearInput") as HTMLInputElement)?.value;
+                if (artist || album || year) {
+                  metadata = { artist, album, year };
+                }
+              }
               
               if (!media) return;
               try {
@@ -291,7 +338,9 @@ export default function HomePage() {
                   channel: media.channel, duration: media.duration, outputFormat: format, quality,
                   customFilename: customFilename || undefined,
                   startTime: startTime || undefined,
-                  endTime: endTime || undefined
+                  endTime: endTime || undefined,
+                  normalizeAudio,
+                  metadata
                 });
                 setUrl(""); setMedia(null);
                 (document.getElementById("customFilenameInput") as HTMLInputElement).value = "";

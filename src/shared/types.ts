@@ -298,6 +298,7 @@ export interface DownloadItem {
   customFilename?: string;
   startTime?: string;
   endTime?: string;
+  normalizeAudio?: boolean;
   retries: number;
   maxRetries: number;
   metadata?: DownloadMetadata;
@@ -307,6 +308,9 @@ export interface DownloadMetadata {
   title?: string;
   description?: string;
   channel?: string;
+  artist?: string;
+  album?: string;
+  year?: string;
   tags?: string[];
   thumbnail?: string;
   comments?: boolean;
