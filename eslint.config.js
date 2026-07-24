@@ -14,9 +14,12 @@ export default tseslint.config(
       "react-hooks/exhaustive-deps": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
+      "prefer-const": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "no-useless-escape": "off"
     },
   },
   {
-    ignores: ["dist/**", "release/**", "node_modules/**"],
+    ignores: ["dist/**", "release/**", "release_dist/**", "node_modules/**", "dist-electron/**", "scripts/**", "*.config.*", "*.mjs"],
   }
 );
