@@ -2,6 +2,9 @@ name: Release
 
 on:
   push:
+    branches:
+      - master
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -30,6 +33,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -38,20 +42,18 @@ jobs:
         run: npm run build
 
       - name: Rebuild native modules
-        run: npx electron-rebuild
+        run: npx electron-rebuild -f -w better-sqlite3
 
-      - name: Download yt-dlp
-        if: matrix.target == 'win' || matrix.target == 'mac'
+      - name: Download yt-dlp (Windows)
+        if: matrix.target == 'win'
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path yt-dlp
-          if ("${{ matrix.target }}" -eq "win") {
-            Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "yt-dlp/yt-dlp.exe"
-          } else {
-            Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" -OutFile "yt-dlp/yt-dlp"
-          }
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "yt-dlp/yt-dlp.exe"
 
-      - name: Download yt-dlp (Linux)
-        if: matrix.target == 'linux'
+      - name: Download yt-dlp (Mac & Linux)
+        if: matrix.target == 'mac' || matrix.target == 'linux'
+        shell: bash
         run: |
           mkdir -p yt-dlp
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o yt-dlp/yt-dlp
@@ -64,6 +66,8 @@ jobs:
           sudo apt-get install -y libgtk-3-0 libnotify-dev libnss3 libxss1 libasound2 libxtst6 xauth libsecret-1-dev libudev-dev
 
       - name: Build ${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --${{ matrix.target }} --x64 --publish never
 
       - name: Find release files
@@ -80,6 +84,7 @@ jobs:
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: ${{ steps.find.outputs.files }}
           draft: false
