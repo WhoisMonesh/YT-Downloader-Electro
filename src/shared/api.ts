@@ -68,9 +68,3 @@ export interface ElectronAPI {
   onClipboardUrl: (callback: (url: string) => void) => () => void;
   onNotificationClicked: (callback: (data: { downloadId: string }) => void) => () => void;
 }
-
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI;
-  }
-}

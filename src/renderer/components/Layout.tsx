@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../store/useAppStore";
 
@@ -13,28 +13,96 @@ const navItems = [
   { path: "/settings", label: "Settings", icon: "settings" },
 ];
 
+interface FfmpegStatus {
+  available: boolean;
+  path: string;
+  version: string;
+}
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const [ffmpegStatus, setFfmpegStatus] = useState<FfmpegStatus>({ available: false, path: "", version: "" });
+  const [diskSpace, setDiskSpace] = useState({ total: 0, free: 0, used: 0 });
+  const [queueInfo, setQueueInfo] = useState({ activeCount: 0, queueCount: 0 });
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    // Get FFmpeg status
+    window.electronAPI.getFfmpegStatus().then(setFfmpegStatus).catch(() => {});
+
+    // Get disk space
+    window.electronAPI.getDiskSpace().then(setDiskSpace).catch(() => {});
+
+    // Get queue info
+    window.electronAPI.getQueueInfo().then(setQueueInfo).catch(() => {});
+
+    // Set up interval for updates
+    const interval = setInterval(() => {
+      window.electronAPI.getDiskSpace().then(setDiskSpace).catch(() => {});
+      window.electronAPI.getQueueInfo().then(setQueueInfo).catch(() => {});
+      setCurrentTime(new Date());
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleMinimize = useCallback(() => window.electronAPI?.minimizeWindow?.(), []);
   const handleMaximize = useCallback(() => window.electronAPI?.maximizeWindow?.(), []);
   const handleClose = useCallback(() => window.electronAPI?.closeWindow?.(), []);
 
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  // Calculate disk usage percentage
+  const diskUsagePercent = diskSpace.total > 0
+    ? ((diskSpace.total - diskSpace.free) / diskSpace.total) * 100
+    : 0;
+
   return (
     <div className="h-screen flex flex-col bg-surface-300">
+      {/* Title Bar */}
       <div className="title-bar">
         <div className="flex items-center gap-2 no-drag">
-          <button className="w-3 h-3 rounded-full bg-red hover:brightness-110 transition" onClick={handleClose} />
-          <button className="w-3 h-3 rounded-full bg-yellow hover:brightness-110 transition" onClick={handleMinimize} />
-          <button className="w-3 h-3 rounded-full bg-green hover:brightness-110 transition" onClick={handleMaximize} />
+          <button
+            className="w-3 h-3 rounded-full bg-red hover:bg-red-400 transition-colors"
+            onClick={handleClose}
+            title="Close"
+          />
+          <button
+            className="w-3 h-3 rounded-full bg-yellow hover:bg-yellow-400 transition-colors"
+            onClick={handleMinimize}
+            title="Minimize"
+          />
+          <button
+            className="w-3 h-3 rounded-full bg-green hover:bg-green-400 transition-colors"
+            onClick={handleMaximize}
+            title="Maximize"
+          />
         </div>
-        <span className="text-xs text-accent-500 font-medium">Universal Media Downloader</span>
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-accent-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span className="text-xs text-accent-500 font-medium">Universal Media Downloader</span>
+        </div>
         <div className="w-16" />
       </div>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
         <aside
           className={`${
             sidebarCollapsed ? "w-16" : "w-56"
@@ -48,6 +116,7 @@ export default function Layout() {
                   key={item.path}
                   onClick={() => navigate(item.path)}
                   className={`sidebar-item w-full ${isActive ? "active" : ""}`}
+                  title={sidebarCollapsed ? item.label : undefined}
                 >
                   <NavIcon name={item.icon} size={18} />
                   {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
@@ -56,12 +125,13 @@ export default function Layout() {
             })}
           </nav>
           <div className="p-3 border-t border-accent-900/30">
-            <button onClick={toggleSidebar} className="sidebar-item w-full justify-center">
+            <button onClick={toggleSidebar} className="sidebar-item w-full justify-center" title={sidebarCollapsed ? "Expand" : "Collapse"}>
               <ChevronIcon collapsed={sidebarCollapsed} />
             </button>
           </div>
         </aside>
 
+        {/* Main Content */}
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             <Outlet />
@@ -69,13 +139,78 @@ export default function Layout() {
         </main>
       </div>
 
-      <div className="h-6 flex items-center justify-between px-4 bg-surface-200/50 border-t border-accent-900/30 text-xs text-accent-500 shrink-0">
+      {/* Status Bar */}
+      <div className="h-8 flex items-center justify-between px-4 bg-surface-200/50 border-t border-accent-900/30 text-xs text-accent-500 shrink-0">
         <div className="flex items-center gap-4">
-          <span>FFmpeg: <span className="text-green">Ready</span></span>
-          <span>Network: <span className="text-green">Online</span></span>
+          {/* FFmpeg Status */}
+          <div className="flex items-center gap-1.5" title={ffmpegStatus.path || "FFmpeg not found"}>
+            <span className={`w-1.5 h-1.5 rounded-full ${ffmpegStatus.available ? "bg-green" : "bg-red"}`} />
+            <span>FFmpeg: <span className={ffmpegStatus.available ? "text-green" : "text-red"}>{ffmpegStatus.available ? `Ready (v${ffmpegStatus.version})` : "Not Found"}</span></span>
+          </div>
+
+          {/* Network Status */}
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+              <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+              <line x1="12" y1="20" x2="12.01" y2="20" />
+            </svg>
+            <span>Online</span>
+          </div>
+
+          {/* Download Status */}
+          {queueInfo.activeCount > 0 && (
+            <div className="flex items-center gap-1.5 text-blue">
+              <svg className="w-3 h-3 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>{queueInfo.activeCount} active</span>
+            </div>
+          )}
+          {queueInfo.queueCount > 0 && (
+            <div className="flex items-center gap-1.5 text-yellow">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>{queueInfo.queueCount} queued</span>
+            </div>
+          )}
         </div>
+
         <div className="flex items-center gap-4">
-          <span>v1.0.0</span>
+          {/* Disk Space */}
+          <div className="flex items-center gap-2" title={`${formatBytes(diskSpace.free)} free of ${formatBytes(diskSpace.total)}`}>
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <ellipse cx="12" cy="5" rx="9" ry="3" />
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+            </svg>
+            <div className="w-16 h-1.5 bg-accent-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  diskUsagePercent > 90 ? "bg-red" : diskUsagePercent > 70 ? "bg-yellow" : "bg-blue"
+                }`}
+                style={{ width: `${diskUsagePercent}%` }}
+              />
+            </div>
+            <span>{formatBytes(diskSpace.free)} free</span>
+          </div>
+
+          {/* Time */}
+          <div className="flex items-center gap-1.5">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>{formatTime(currentTime)}</span>
+          </div>
+
+          {/* Version */}
+          <span className="opacity-50">v0.2.0</span>
         </div>
       </div>
     </div>

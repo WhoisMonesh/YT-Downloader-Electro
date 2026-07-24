@@ -558,6 +558,124 @@ export interface FfmpegStatus {
     nvenc: boolean;
     quicksync: boolean;
     amf: boolean;
+    vaapi: boolean;
     cpu: boolean;
   };
+}
+
+// --- New types added in the v0.2 overhaul ---
+
+export interface Subscription {
+  id: string;
+  channelId: string;
+  channelName: string;
+  channelUrl: string;
+  enabled: boolean;
+  checkIntervalMinutes: number;
+  lastChecked?: string;
+  lastVideoId?: string;
+  profileId?: string;
+  createdAt: string;
+}
+
+export interface ConversionPreset {
+  id: string;
+  name: string;
+  outputFormat: OutputFormat;
+  videoCodec?: string;
+  audioCodec?: string;
+  videoBitrate?: string;
+  audioBitrate?: string;
+  resolution?: string;
+  fps?: number;
+  trim?: { start: number; end: number };
+  crop?: { x: number; y: number; width: number; height: number };
+  rotate?: number;
+  watermark?: { path: string; position: string; opacity: number };
+  createdAt: string;
+}
+
+export interface Hotkey {
+  id: string;
+  accelerator: string;
+  action: string;
+  label: string;
+  scope: "global" | "app";
+}
+
+export interface Plugin {
+  id: string;
+  name: string;
+  version: string;
+  author: string;
+  description: string;
+  enabled: boolean;
+  path: string;
+  manifest: Record<string, unknown>;
+}
+
+export interface ToastEvent {
+  level: "info" | "success" | "warning" | "error";
+  title: string;
+  message?: string;
+  durationMs?: number;
+  downloadId?: string;
+}
+
+export interface ScheduleFiredEvent {
+  taskId: string;
+  startedAt: string;
+}
+
+export interface BackupBundle {
+  version: string;
+  exportedAt: string;
+  settings: AppSettings;
+  history: HistoryEntry[];
+  schedules: SchedulerTask[];
+  conversionPresets: ConversionPreset[];
+  subscriptions: Subscription[];
+  hotkeys: Hotkey[];
+}
+
+export interface DownloadRow {
+  id: string;
+  url: string;
+  title: string;
+  thumbnail: string;
+  channel: string;
+  duration: number;
+  status: DownloadStatus;
+  progress_percent: number;
+  progress_speed: number;
+  progress_eta: number;
+  progress_downloaded: number;
+  progress_total: number;
+  progress_stage: string;
+  output_path: string;
+  format: string;
+  quality: string;
+  audio_quality: string;
+  file_size: number;
+  created_at: string;
+  updated_at: string;
+  error: string | null;
+  retry_count: number;
+  priority: number;
+  output_format: string;
+  is_playlist: number;
+  playlist_id: string | null;
+}
+
+export interface ConversionRow {
+  id: string;
+  input_path: string;
+  output_path: string;
+  output_format: string;
+  status: DownloadStatus;
+  progress: number;
+  created_at: string;
+  completed_at: string | null;
+  error: string | null;
+  options: string; // JSON
 }

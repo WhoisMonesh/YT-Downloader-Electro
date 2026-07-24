@@ -7,3 +7,10 @@ release/
 Thumbs.db
 .env
 .env.local
+.vscode/
+.idea/
+*.tsbuildinfo
+coverage/
+.cache/
+playwright-report/
+test-results/

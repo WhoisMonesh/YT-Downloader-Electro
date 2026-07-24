@@ -7,6 +7,15 @@ import { Logger } from "../../shared/logger";
 
 const logger = new Logger("ffmpeg");
 
+// Try to use ffmpeg-static if available
+let ffmpegStaticPath: string | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  ffmpegStaticPath = require("ffmpeg-static");
+} catch {
+  // ffmpeg-static not available
+}
+
 export class FFmpegManager {
   private ffmpegPath: string = "";
   private settings: SettingsManager;
@@ -24,15 +33,23 @@ export class FFmpegManager {
     const customPath = this.settings.get("ffmpegPath");
     if (customPath && existsSync(customPath)) return customPath;
 
+    // Use ffmpeg-static if available (bundled with app)
+    if (ffmpegStaticPath && existsSync(ffmpegStaticPath)) {
+      return ffmpegStaticPath;
+    }
+
     const ext = process.platform === "win32" ? ".exe" : "";
     const name = "ffmpeg" + ext;
 
+    // Check bundled resource
     const bundled = join(process.resourcesPath, "ffmpeg", name);
     if (existsSync(bundled)) return bundled;
 
+    // Check project root
     const local = join(process.cwd(), "ffmpeg", name);
     if (existsSync(local)) return local;
 
+    // Fallback to PATH
     return name;
   }
 

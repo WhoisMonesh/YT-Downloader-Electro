@@ -38,10 +38,10 @@ const electronAPI = {
   getDownloads: (): Promise<DownloadItem[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_DOWNLOADS),
 
-  moveDownloadUp: (id: string): Promise<void> =>
+  moveDownloadUp: (id: string): Promise<{ success: boolean }> =>
     ipcRenderer.invoke(IPC_CHANNELS.MOVE_DOWNLOAD_UP, id),
 
-  moveDownloadDown: (id: string): Promise<void> =>
+  moveDownloadDown: (id: string): Promise<{ success: boolean }> =>
     ipcRenderer.invoke(IPC_CHANNELS.MOVE_DOWNLOAD_DOWN, id),
 
   reorderQueue: (ids: string[]): Promise<void> =>
@@ -134,6 +134,15 @@ const electronAPI = {
   deleteScheduledTask: (id: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.DELETE_SCHEDULED_TASK, id),
 
+  toggleSchedule: (id: string): Promise<void> =>
+    ipcRenderer.invoke("toggle-schedule", id),
+
+  runScheduledTaskNow: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.RUN_SCHEDULED_TASK_NOW, id),
+
+  getQueueInfo: (): Promise<{ queued: DownloadItem[]; queueCount: number; activeCount: number }> =>
+    ipcRenderer.invoke("get-queue-info"),
+
   getLogs: (category?: string, level?: string): Promise<LogEntry[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_LOGS, category, level),
 
@@ -180,11 +189,25 @@ const electronAPI = {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.DOWNLOAD_FAILED, handler);
   },
 
-  onConversionProgress: (callback: (progress: ConversionTask) => void): (() => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: ConversionTask) =>
+  onConversionProgress: (callback: (progress: { id: string; progress: number }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { id: string; progress: number }) =>
       callback(progress);
     ipcRenderer.on(IPC_CHANNELS.CONVERSION_PROGRESS, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.CONVERSION_PROGRESS, handler);
+  },
+
+  onConversionCompleted: (callback: (data: { id: string; outputPath: string }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { id: string; outputPath: string }) =>
+      callback(data);
+    ipcRenderer.on(IPC_CHANNELS.CONVERSION_COMPLETED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CONVERSION_COMPLETED, handler);
+  },
+
+  onConversionFailed: (callback: (data: { id: string; error: string }) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { id: string; error: string }) =>
+      callback(data);
+    ipcRenderer.on(IPC_CHANNELS.CONVERSION_FAILED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CONVERSION_FAILED, handler);
   },
 
   onClipboardUrl: (callback: (url: string) => void): (() => void) => {

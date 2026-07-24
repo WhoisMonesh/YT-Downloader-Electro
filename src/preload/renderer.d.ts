@@ -25,8 +25,8 @@ export interface Api {
   cancelDownload: (id: string) => Promise<void>;
   retryDownload: (id: string) => Promise<void>;
   getDownloads: () => Promise<DownloadItem[]>;
-  moveDownloadUp: (id: string) => Promise<void>;
-  moveDownloadDown: (id: string) => Promise<void>;
+  moveDownloadUp: (id: string) => Promise<{ success: boolean }>;
+  moveDownloadDown: (id: string) => Promise<{ success: boolean }>;
   reorderQueue: (ids: string[]) => Promise<void>;
   getQueueStatus: () => Promise<{ active: number; waiting: number; paused: number }>;
   clearQueue: () => Promise<void>;
@@ -63,16 +63,31 @@ export interface Api {
   addScheduledTask: (task: Partial<SchedulerTask>) => Promise<SchedulerTask>;
   updateScheduledTask: (id: string, task: Partial<SchedulerTask>) => Promise<void>;
   deleteScheduledTask: (id: string) => Promise<void>;
+  toggleSchedule: (id: string) => Promise<void>;
+  runScheduledTaskNow: (id: string) => Promise<void>;
 
   getLogs: (category?: string, level?: string) => Promise<LogEntry[]>;
   exportLogs: () => Promise<string>;
   batchImport: (urls: string[]) => Promise<void>;
   batchExport: (ids: string[]) => Promise<string>;
 
+  // Queue info
+  getQueueInfo: () => Promise<{
+    queued: DownloadItem[];
+    queueCount: number;
+    activeCount: number;
+  }>;
+
+  // Theme
+  getTheme: () => Promise<string>;
+  setTheme: (theme: string) => Promise<void>;
+
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => () => void;
   onDownloadCompleted: (callback: (item: DownloadItem) => void) => () => void;
   onDownloadFailed: (callback: (item: DownloadItem) => void) => () => void;
-  onConversionProgress: (callback: (progress: ConversionTask) => void) => () => void;
+  onConversionProgress: (callback: (progress: { id: string; progress: number }) => void) => () => void;
+  onConversionCompleted: (callback: (data: { id: string; outputPath: string }) => void) => () => void;
+  onConversionFailed: (callback: (data: { id: string; error: string }) => void) => () => void;
   onClipboardUrl: (callback: (url: string) => void) => () => void;
 
   selectDirectory: () => Promise<string | null>;

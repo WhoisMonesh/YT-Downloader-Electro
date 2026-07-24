@@ -1,13 +1,16 @@
 {
   "name": "universal-media-downloader",
-  "version": "1.0.0",
-  "description": "A professional, modern, cross-platform desktop application that downloads online media and converts it into multiple formats.",
+  "productName": "Universal Media Downloader",
+  "version": "0.2.0",
+  "description": "Professional, modern, cross-platform desktop application for downloading online media and converting it into multiple formats.",
   "main": "dist-electron/main/index.js",
-  "author": "Universal Media Downloader Team",
+  "author": {
+    "name": "Universal Media Downloader Team"
+  },
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && tsc -p tsconfig.main.json",
+    "build": "tsc --noEmit -p tsconfig.json && vite build && tsc -p tsconfig.main.json",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "preview": "vite preview",
@@ -15,18 +18,22 @@
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "lint": "eslint src --ext .ts,.tsx",
-    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
-    "typecheck": "tsc --noEmit",
-    "typecheck:main": "tsc -p tsconfig.main.json --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.main.json",
+    "typecheck:renderer": "tsc --noEmit -p tsconfig.json",
+    "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
     "postinstall": "electron-builder install-app-deps",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "package": "electron-builder",
-    "package:win": "electron-builder --win",
-    "package:mac": "electron-builder --mac",
-    "package:linux": "electron-builder --linux"
+    "icons": "node scripts/build-icons.mjs",
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:linux": "npm run build && electron-builder --linux",
+    "release:patch": "npm version patch",
+    "release:minor": "npm version minor",
+    "release:major": "npm version major"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -34,12 +41,20 @@
     "@heroicons/react": "^2.2.0",
     "axios": "^1.7.0",
     "better-sqlite3": "^11.7.0",
+    "check-disk-space": "^3.4.0",
+    "cron-parser": "^4.9.0",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.0",
+    "ffmpeg-static": "^5.2.0",
     "fluent-ffmpeg": "^2.1.3",
+    "framer-motion": "^11.11.0",
+    "i18next": "^23.16.0",
+    "i18next-browser-languagedetector": "^8.0.0",
     "loglevel": "^1.9.1",
     "p-queue": "^8.0.1",
+    "react-i18next": "^15.1.0",
     "react-query": "^3.39.3",
+    "recharts": "^2.13.0",
     "uuid": "^11.0.0"
   },
   "devDependencies": {
@@ -56,10 +71,10 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.0",
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^5.0.0",
-    "framer-motion": "^11.11.0",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.4.49",
     "prettier": "^3.4.0",
     "react": "^18.3.1",
@@ -67,88 +82,66 @@
     "react-hook-form": "^7.54.0",
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^6.28.0",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.0.0",
     "vite": "^5.4.0",
     "vitest": "^2.1.0",
     "wait-on": "^8.0.0",
     "zustand": "^5.0.0"
   },
   "build": {
-    "appId": "com.universalmediadownloader.app",
+    "appId": "com.universal-media-downloader.app",
     "productName": "Universal Media Downloader",
+    "copyright": "Copyright © 2026 Universal Media Downloader",
     "directories": {
       "output": "release",
-      "buildResources": "resources"
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
-      "resources/**/*"
+      "dist-electron/**/*",
+      "package.json"
     ],
     "extraResources": [
       {
         "from": "ffmpeg/",
-        "to": "ffmpeg/"
+        "to": "ffmpeg",
+        "filter": ["**/*"]
       },
       {
         "from": "yt-dlp/",
-        "to": "yt-dlp/"
+        "to": "yt-dlp",
+        "filter": ["**/*"]
       }
     ],
     "win": {
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "msi",
-          "arch": [
-            "x64"
-          ]
-        },
         {
           "target": "portable",
           "arch": [
             "x64"
           ]
         }
-      ],
-      "icon": "resources/icon.ico",
-      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Universal Media Downloader"
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "icon": "resources/icon.icns",
-      "category": "public.app-category.video",
-      "artifactName": "${productName}-${version}-mac.${ext}"
+      ]
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb",
-        "rpm"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "resources/icon.png",
       "category": "AudioVideo",
       "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
     },
     "publish": {
       "provider": "github",
-      "owner": "universal-media-downloader",
-      "repo": "universal-media-downloader"
+      "owner": "WhoisMonesh",
+      "repo": "YT-Downloader-Electro"
     }
   }
 }

@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+          - os: macos-latest
+            target: mac
+          - os: ubuntu-latest
+            target: linux
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Rebuild native modules
+        run: npx electron-rebuild
+
+      - name: Download yt-dlp
+        if: matrix.target == 'win' || matrix.target == 'mac'
+        run: |
+          New-Item -ItemType Directory -Force -Path yt-dlp
+          if ("${{ matrix.target }}" -eq "win") {
+            Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "yt-dlp/yt-dlp.exe"
+          } else {
+            Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp" -OutFile "yt-dlp/yt-dlp"
+          }
+
+      - name: Download yt-dlp (Linux)
+        if: matrix.target == 'linux'
+        run: |
+          mkdir -p yt-dlp
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o yt-dlp/yt-dlp
+          chmod +x yt-dlp/yt-dlp
+
+      - name: Install Linux dependencies
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 libnotify-dev libnss3 libxss1 libasound2 libxtst6 xauth libsecret-1-dev libudev-dev
+
+      - name: Build ${{ matrix.target }}
+        run: npx electron-builder --${{ matrix.target }} --x64 --publish never
+
+      - name: Find release files
+        id: find
+        shell: bash
+        run: |
+          if [ "${{ matrix.target }}" = "win" ]; then
+            echo "files=$(find release -name '*.exe' | tr '\n' ',')" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.target }}" = "mac" ]; then
+            echo "files=$(find release -name '*.dmg' | tr '\n' ',')" >> $GITHUB_OUTPUT
+          else
+            echo "files=$(find release -name '*.AppImage' -o -name '*.deb' | tr '\n' ',')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find.outputs.files }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

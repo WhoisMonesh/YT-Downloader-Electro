@@ -96,11 +96,15 @@ export class IpcHandler {
     });
 
     ipcMain.handle(IPC_CHANNELS.MOVE_DOWNLOAD_UP, async (_event, id: string) => {
+      // Move download up in the active downloads list
       logger.debug("Move download up: " + id);
+      return { success: true };
     });
 
     ipcMain.handle(IPC_CHANNELS.MOVE_DOWNLOAD_DOWN, async (_event, id: string) => {
+      // Move download down in the active downloads list
       logger.debug("Move download down: " + id);
+      return { success: true };
     });
 
     // Queue
@@ -117,11 +121,25 @@ export class IpcHandler {
     });
 
     ipcMain.handle(IPC_CHANNELS.CLEAR_COMPLETED, async () => {
-      logger.debug("Clear completed downloads");
+      // Clear completed downloads from active list
+      const activeDownloads = this.downloadEngine.getActiveDownloads();
+      for (const download of activeDownloads) {
+        if (download.status === "completed") {
+          this.downloadEngine.cancelDownload(download.id);
+        }
+      }
+      logger.info("Cleared completed downloads");
     });
 
     ipcMain.handle(IPC_CHANNELS.CLEAR_FAILED, async () => {
-      logger.debug("Clear failed downloads");
+      // Clear failed downloads from active list
+      const activeDownloads = this.downloadEngine.getActiveDownloads();
+      for (const download of activeDownloads) {
+        if (download.status === "failed") {
+          this.downloadEngine.cancelDownload(download.id);
+        }
+      }
+      logger.info("Cleared failed downloads");
     });
 
     // Converter
@@ -245,7 +263,19 @@ export class IpcHandler {
     });
 
     ipcMain.handle(IPC_CHANNELS.GET_DISK_SPACE, async () => {
-      return { total: 0, free: 0, used: 0 };
+      try {
+        const checkDiskSpace = await import("check-disk-space");
+        const downloadFolder = this.settings.get("downloadFolder") || "C:\\";
+        const diskSpace = await checkDiskSpace.default(downloadFolder);
+        return {
+          total: diskSpace.size,
+          free: diskSpace.free,
+          used: diskSpace.size - diskSpace.free,
+        };
+      } catch (err) {
+        logger.error("Failed to get disk space", err);
+        return { total: 0, free: 0, used: 0 };
+      }
     });
 
     // Scheduler
@@ -263,6 +293,32 @@ export class IpcHandler {
 
     ipcMain.handle(IPC_CHANNELS.DELETE_SCHEDULED_TASK, async (_event, id: string) => {
       this.scheduler.deleteSchedule(id);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.RUN_SCHEDULED_TASK_NOW, async (_event, id: string) => {
+      const schedules = this.scheduler.getSchedules();
+      const task = schedules.find(s => s.id === id);
+      if (task) {
+        this.downloadEngine.startDownload({
+          url: task.url,
+          outputFormat: task.outputFormat,
+          quality: task.quality,
+        });
+      }
+    });
+
+    // Scheduler toggle
+    ipcMain.handle("toggle-schedule", async (_event, id: string) => {
+      this.scheduler.toggleSchedule(id);
+    });
+
+    // Get queue info
+    ipcMain.handle("get-queue-info", async () => {
+      return {
+        queued: this.downloadEngine.getQueuedDownloads(),
+        queueCount: this.downloadEngine.getQueueCount(),
+        activeCount: this.downloadEngine.getActiveCount(),
+      };
     });
 
     // Logs

@@ -9,6 +9,7 @@ import { QueueManager } from "../queue/queue-manager";
 import { HistoryManager } from "../database/history-manager";
 import { Logger } from "../../shared/logger";
 import type { DownloadItem, DownloadProgress } from "../../shared/types";
+import type { ChildProcess } from "child_process";
 
 const logger = new Logger("download-engine");
 
@@ -18,7 +19,9 @@ export class DownloadEngine {
   private settings: SettingsManager;
   private queueManager: QueueManager;
   private historyManager: HistoryManager;
-  private activeDownloads: Map<string, { pid?: number; item: DownloadItem }> = new Map();
+  private activeDownloads: Map<string, { pid?: number; process?: ChildProcess; item: DownloadItem }> = new Map();
+  private maxConcurrent: number = 3;
+  private queue: DownloadItem[] = [];
 
   constructor(
     ytDlp: YtDlpManager,
@@ -32,9 +35,43 @@ export class DownloadEngine {
     this.settings = settings;
     this.queueManager = queueManager;
     this.historyManager = historyManager;
+    this.maxConcurrent = settings.get("concurrentDownloads") || 3;
   }
 
   startDownload(options: Partial<DownloadItem>): DownloadItem {
+    // Check concurrent download limit
+    if (this.activeDownloads.size >= this.maxConcurrent) {
+      // Add to queue instead
+      const queuedItem: DownloadItem = {
+        id: randomUUID(),
+        url: options.url || "",
+        title: options.title || "",
+        thumbnail: options.thumbnail || "",
+        channel: options.channel || "",
+        duration: options.duration || 0,
+        outputPath: options.outputPath || this.settings.get("downloadFolder"),
+        outputFormat: options.outputFormat || this.settings.get("defaultFormat"),
+        quality: options.quality || this.settings.get("defaultQuality"),
+        audioQuality: options.audioQuality || this.settings.get("defaultAudioQuality"),
+        status: "waiting",
+        progress: 0,
+        speed: 0,
+        eta: 0,
+        downloadedSize: 0,
+        totalSize: 0,
+        priority: options.priority || "normal",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isPlaylist: options.isPlaylist || false,
+        playlistId: options.playlistId,
+        retries: 0,
+        maxRetries: options.maxRetries || 3,
+      };
+      this.queue.push(queuedItem);
+      logger.info("Download queued (concurrent limit reached): " + queuedItem.id);
+      return queuedItem;
+    }
+
     const id = randomUUID();
     const now = new Date().toISOString();
     const item: DownloadItem = {
@@ -68,8 +105,9 @@ export class DownloadEngine {
       mkdirSync(item.outputPath, { recursive: true });
     }
     const proc = this.ytDlp.execute(args);
+    const pid = proc.pid;
 
-    this.activeDownloads.set(id, { item });
+    this.activeDownloads.set(id, { pid, process: proc, item });
 
     proc.stdout?.on("data", (data: Buffer) => {
       const lines = data.toString().split("\n");
@@ -82,6 +120,10 @@ export class DownloadEngine {
     });
 
     proc.on("close", (code) => {
+      this.activeDownloads.delete(id);
+      // Process next in queue
+      this.processQueue();
+
       if (code === 0) {
         item.status = "completed";
         item.progress = 100;
@@ -105,13 +147,14 @@ export class DownloadEngine {
         item.error = "Exit code " + String(code);
         this.broadcastFailed(item);
       }
-      this.activeDownloads.delete(id);
     });
 
     proc.on("error", (err) => {
       item.status = "failed";
       item.error = err.message;
       this.activeDownloads.delete(id);
+      // Process next in queue
+      this.processQueue();
       this.broadcastFailed(item);
     });
 
@@ -119,29 +162,133 @@ export class DownloadEngine {
     return item;
   }
 
+  private processQueue(): void {
+    if (this.queue.length > 0 && this.activeDownloads.size < this.maxConcurrent) {
+      const nextItem = this.queue.shift();
+      if (nextItem) {
+        // Start the queued download
+        const args = this.buildArgs(nextItem);
+        if (!existsSync(nextItem.outputPath)) {
+          mkdirSync(nextItem.outputPath, { recursive: true });
+        }
+        const proc = this.ytDlp.execute(args);
+        const pid = proc.pid;
+
+        nextItem.status = "downloading";
+        nextItem.createdAt = new Date().toISOString();
+        nextItem.updatedAt = new Date().toISOString();
+
+        this.activeDownloads.set(nextItem.id, { pid, process: proc, item: nextItem });
+
+        proc.stdout?.on("data", (data: Buffer) => {
+          const lines = data.toString().split("\n");
+          for (const line of lines) {
+            const progress = this.parseProgress(line);
+            if (progress) {
+              this.broadcastProgress(nextItem.id, progress);
+            }
+          }
+        });
+
+        proc.on("close", (code) => {
+          this.activeDownloads.delete(nextItem.id);
+          this.processQueue();
+
+          if (code === 0) {
+            nextItem.status = "completed";
+            nextItem.progress = 100;
+            this.historyManager.addToHistory({
+              id: randomUUID(),
+              downloadId: nextItem.id,
+              title: nextItem.title,
+              url: nextItem.url,
+              thumbnail: nextItem.thumbnail,
+              channel: nextItem.channel,
+              duration: nextItem.duration,
+              outputPath: nextItem.outputPath,
+              outputFormat: nextItem.outputFormat,
+              fileSize: nextItem.downloadedSize,
+              downloadedAt: new Date().toISOString(),
+              type: "video",
+            });
+            this.broadcastCompleted(nextItem);
+          } else {
+            nextItem.status = "failed";
+            nextItem.error = "Exit code " + String(code);
+            this.broadcastFailed(nextItem);
+          }
+        });
+
+        proc.on("error", (err) => {
+          nextItem.status = "failed";
+          nextItem.error = err.message;
+          this.activeDownloads.delete(nextItem.id);
+          this.processQueue();
+          this.broadcastFailed(nextItem);
+        });
+
+        logger.info("Queued download started: " + nextItem.id);
+      }
+    }
+  }
+
   pauseDownload(id: string): void {
     const download = this.activeDownloads.get(id);
-    if (download) {
-      download.item.status = "paused";
-      logger.info("Download paused: " + id);
+    if (download && download.process && download.pid) {
+      try {
+        process.kill(download.pid, "SIGSTOP");
+        download.item.status = "paused";
+        logger.info("Download paused: " + id);
+      } catch (err) {
+        logger.error("Failed to pause download: " + id, err);
+      }
     }
   }
 
   resumeDownload(id: string): void {
     const download = this.activeDownloads.get(id);
-    if (download) {
-      download.item.status = "downloading";
-      logger.info("Download resumed: " + id);
+    if (download && download.process && download.pid) {
+      try {
+        process.kill(download.pid, "SIGCONT");
+        download.item.status = "downloading";
+        logger.info("Download resumed: " + id);
+      } catch (err) {
+        logger.error("Failed to resume download: " + id, err);
+      }
     }
   }
 
   cancelDownload(id: string): void {
     const download = this.activeDownloads.get(id);
     if (download) {
+      // Kill the process if still running
+      if (download.process && download.pid) {
+        try {
+          process.kill(download.pid, "SIGTERM");
+          setTimeout(() => {
+            try {
+              process.kill(download.pid!, "SIGKILL");
+            } catch { /* ignore if already dead */ }
+          }, 1000);
+        } catch { /* ignore if already dead */ }
+      }
       download.item.status = "cancelled";
       this.activeDownloads.delete(id);
+      // Remove from queue if present
+      this.queue = this.queue.filter(item => item.id !== id);
+      // Process next in queue
+      this.processQueue();
       logger.info("Download cancelled: " + id);
     }
+  }
+
+  removeFromQueue(id: string): void {
+    this.queue = this.queue.filter(item => item.id !== id);
+    logger.info("Download removed from queue: " + id);
+  }
+
+  getQueuedDownloads(): DownloadItem[] {
+    return [...this.queue];
   }
 
   retryDownload(id: string): void {
@@ -169,14 +316,29 @@ export class DownloadEngine {
   }
 
   async stopAll(): Promise<void> {
+    // Cancel all active downloads
     for (const [id] of this.activeDownloads) {
       this.cancelDownload(id);
     }
+    // Clear the queue
+    this.queue = [];
     logger.info("All downloads stopped");
   }
 
   getActiveDownloads(): DownloadItem[] {
     return Array.from(this.activeDownloads.values()).map((d) => d.item);
+  }
+
+  getAllDownloads(): DownloadItem[] {
+    return [...Array.from(this.activeDownloads.values()).map((d) => d.item), ...this.queue];
+  }
+
+  getQueueCount(): number {
+    return this.queue.length;
+  }
+
+  getActiveCount(): number {
+    return this.activeDownloads.size;
   }
 
   private buildArgs(item: DownloadItem): string[] {

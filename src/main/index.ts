@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from "electron";
+import { app, BrowserWindow, session, Menu } from "electron";
 import { join } from "path";
 import log from "loglevel";
 import { WindowManager } from "./window-manager";
@@ -18,6 +18,12 @@ import { ClipboardManager } from "./ipc/clipboard-manager";
 import { Logger } from "../shared/logger";
 
 const logger = new Logger("main");
+
+// Hide default Electron menu completely
+function setupMenu(): void {
+  // Set menu to null to completely hide the menu bar
+  Menu.setApplicationMenu(null);
+}
 let windowManager: WindowManager;
 let database: DatabaseManager;
 let settings: SettingsManager;
@@ -50,6 +56,9 @@ app.whenReady().then(async () => {
   try {
     log.info("[Main] Application starting...");
 
+    // Setup minimal menu (hide default menus)
+    setupMenu();
+
     database = new DatabaseManager();
     database.initialize();
     log.info("[Main] Database initialized");
@@ -71,6 +80,7 @@ app.whenReady().then(async () => {
     downloadEngine = new DownloadEngine(ytDlp, ffmpeg, settings, queueManager, historyManager);
     converter = new ConverterManager(ffmpeg, settings);
     scheduler = new SchedulerManager(downloadEngine, settings);
+    scheduler.start();
 
     windowManager = new WindowManager(settings);
     const mainWindow = windowManager.createMainWindow();

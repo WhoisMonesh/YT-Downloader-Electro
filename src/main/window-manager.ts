@@ -31,11 +31,11 @@ export class WindowManager {
       },
     });
 
-    if (is.dev) {
-      const url = process.env["ELECTRON_RENDERER_URL"] || "http://localhost:5173";
+    if (is.dev && process.env["ELECTRON_RENDERER_URL"]) {
+      const url = process.env["ELECTRON_RENDERER_URL"];
       this.mainWindow.loadURL(url);
     } else {
-      this.mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
+      this.mainWindow.loadFile(join(__dirname, "../../dist/renderer/index.html"));
     }
 
     this.mainWindow.once("ready-to-show", () => {
