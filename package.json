@@ -129,6 +129,7 @@
       }
     ],
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
         {
           "target": "portable",
