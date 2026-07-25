@@ -52,3 +52,14 @@ jobs:
           name: universal-media-mobile.apk
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
+
+      - name: Release Direct APK
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        with:
+          tag_name: mobile-latest
+          name: Latest Android APK
+          files: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
