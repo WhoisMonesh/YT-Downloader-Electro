@@ -151,19 +151,44 @@ export class DownloadEngine {
       postAction: options.postAction,
     };
 
-    const args = this.buildArgs(item);
+    let proc;
+    let pid;
+
     if (!existsSync(item.outputPath)) {
       mkdirSync(item.outputPath, { recursive: true });
     }
-    const proc = this.ytDlp.execute(args);
-    const pid = proc.pid;
+
+    if (item.url.startsWith("magnet:?")) {
+      const aria2cPath = this.settings.get("aria2c")?.path || "aria2c";
+      const ariaArgs = [
+        "--dir", item.outputPath,
+        "--seed-time=0", // Don't seed after download
+        "--summary-interval=1",
+        item.url
+      ];
+      proc = require("child_process").spawn(aria2cPath, ariaArgs, { stdio: ["pipe", "pipe", "pipe"] });
+      pid = proc.pid;
+    } else {
+      const args = this.buildArgs(item);
+      proc = this.ytDlp.execute(args);
+      pid = proc.pid;
+    }
 
     this.activeDownloads.set(id, { pid, process: proc, item });
 
     proc.stdout?.on("data", (data: Buffer) => {
       const lines = data.toString().split(/[\r\n]+/);
       for (const line of lines) {
-        const progress = this.parseProgress(line);
+        let progress = null;
+        if (item.url.startsWith("magnet:?")) {
+          const match = line.match(/\((\d+)%\)/);
+          if (match) {
+            progress = { progress: parseFloat(match[1]) };
+          }
+        } else {
+          progress = this.parseProgress(line);
+        }
+
         if (progress) {
           if (progress.progress !== undefined) item.progress = progress.progress;
           if (progress.speed !== undefined) item.speed = progress.speed;
