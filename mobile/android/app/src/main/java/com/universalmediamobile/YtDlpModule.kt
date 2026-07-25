@@ -10,23 +10,25 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 class YtDlpModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     init {
-        try {
-            YoutubeDL.getInstance().init(reactContext)
-            
-            // Initialize FFmpeg only if the library class is present
+        Thread(Runnable {
             try {
-                // The junkfood02 fork changed the package name from ffmpeg_android to ffmpeg
-                val ffmpegClass = Class.forName("com.yausername.ffmpeg.FFmpeg")
-                val getInstance = ffmpegClass.getMethod("getInstance")
-                val ffmpegInstance = getInstance.invoke(null)
-                val initMethod = ffmpegClass.getMethod("init", android.content.Context::class.java)
-                initMethod.invoke(ffmpegInstance, reactContext)
-            } catch (cnfe: ClassNotFoundException) {
-                // FFmpeg library not present — skip initialization
+                YoutubeDL.getInstance().init(reactContext)
+                
+                // Initialize FFmpeg only if the library class is present
+                try {
+                    // The junkfood02 fork changed the package name from ffmpeg_android to ffmpeg
+                    val ffmpegClass = Class.forName("com.yausername.ffmpeg.FFmpeg")
+                    val getInstance = ffmpegClass.getMethod("getInstance")
+                    val ffmpegInstance = getInstance.invoke(null)
+                    val initMethod = ffmpegClass.getMethod("init", android.content.Context::class.java)
+                    initMethod.invoke(ffmpegInstance, reactContext)
+                } catch (cnfe: ClassNotFoundException) {
+                    // FFmpeg library not present — skip initialization
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        }).start()
     }
 
     override fun getName(): String {
