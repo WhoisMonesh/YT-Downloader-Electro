@@ -58,6 +58,7 @@ export default {
       },
       fontFamily: {
         sans: [
+          "Outfit",
           "Inter",
           "Segoe UI",
           "system-ui",
