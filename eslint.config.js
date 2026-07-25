@@ -20,6 +20,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", "release/**", "release_dist/**", "node_modules/**", "dist-electron/**", "scripts/**", "*.config.*", "*.mjs"],
+    ignores: ["dist/**", "release/**", "release_dist/**", "node_modules/**", "dist-electron/**", "scripts/**", "*.config.*", "*.mjs", "mobile/**"],
   }
 );
