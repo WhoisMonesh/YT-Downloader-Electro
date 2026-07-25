@@ -55,8 +55,8 @@
     "react-i18next": "^15.1.0",
     "react-query": "^3.39.3",
     "recharts": "^2.13.0",
-    "uuid": "^11.0.0",
-    "webtorrent": "^3.0.16"
+    "torrent-stream": "^1.2.1",
+    "uuid": "^11.0.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.0",
@@ -109,16 +109,12 @@
       {
         "from": "ffmpeg/",
         "to": "ffmpeg",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       },
       {
         "from": "yt-dlp/",
         "to": "yt-dlp",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       }
     ],
     "win": {
