@@ -19,7 +19,7 @@ import pngToIco from "png-to-ico";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const SVG_PATH = join(ROOT, "resources", "icon.svg");
+const SVG_PATH = join(ROOT, "resources", "icon.jpg");
 const RES = join(ROOT, "resources");
 
 const PNG_SIZES = [16, 24, 32, 48, 64, 128, 256, 512, 1024];

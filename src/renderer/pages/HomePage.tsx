@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useRef, DragEvent, ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import type { MediaInfo, OutputFormat, VideoQuality } from "../../shared/types";
 import { VIDEO_FORMATS, AUDIO_FORMATS, VIDEO_QUALITIES } from "../../shared/constants";
 import toast from "react-hot-toast";
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [media, setMedia] = useState<MediaInfo | null>(null);
@@ -56,6 +58,7 @@ export default function HomePage() {
              channel: info.channel, duration: info.duration, outputFormat: format, quality,
            });
            setUrl(""); setMedia(null);
+           navigate("/queue");
         }
       } catch (e) {
         console.error("Analysis failed:", e);
@@ -132,6 +135,7 @@ export default function HomePage() {
         channel: media.channel, duration: media.duration, outputFormat: format, quality,
       });
       setUrl(""); setMedia(null);
+      navigate("/queue");
     } catch (e) { console.error("Download failed:", e); }
   }, [media, format, quality]);
 
@@ -435,6 +439,7 @@ export default function HomePage() {
                 (document.getElementById("customFilenameInput") as HTMLInputElement).value = "";
                 (document.getElementById("trimStartInput") as HTMLInputElement).value = "";
                 (document.getElementById("trimEndInput") as HTMLInputElement).value = "";
+                navigate("/queue");
               } catch (e) { console.error("Download failed:", e); }
             }} className="btn-primary w-full mt-4 flex items-center justify-center gap-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
