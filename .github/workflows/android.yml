@@ -1,4 +1,4 @@
-name: Build React Native Android App (Option 2)
+name: Build Android App (Capacitor)
 
 on:
   workflow_dispatch:
@@ -6,16 +6,11 @@ on:
     branches:
       - master
       - main
-    paths:
-      - 'mobile/**'
 
 jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./mobile
 
     steps:
       - name: Checkout Source Code
@@ -24,10 +19,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Build Web App
+        run: npm run build:renderer
+
+      - name: Sync Capacitor Android
+        run: |
+          npx cap add android || true
+          npx cap sync android
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -38,17 +42,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Make gradlew executable
-        working-directory: ./mobile/android
-        run: chmod +x ./gradlew
-
       - name: Build APK with Gradle
-        working-directory: ./mobile/android
+        working-directory: ./android
         run: ./gradlew assembleDebug
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: universal-media-mobile.apk
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
