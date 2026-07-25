@@ -1,17 +1,53 @@
-# Universal Media Downloader
+<div align="center">
+  <img src="resources/icon.png" width="150" alt="Universal Media Downloader Icon" />
+  
+  # Universal Media Downloader
+  
+  **A beautiful, lightning-fast, and powerful cross-platform media extraction tool.**
+  
+  [![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](#-download)
+  [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](#-download)
+  [![Electron](https://img.shields.io/badge/Electron-47848F?style=for-the-badge&logo=electron&logoColor=white)](#)
+  [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](#)
+  [![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](#)
 
-Universal Media Downloader is a powerful, modern, and cross-platform desktop application built with Electron, React, Vite, and Tailwind CSS. It leverages the power of `yt-dlp` and `FFmpeg` to download video, audio, and torrent streams with unparalleled speed and reliability.
+</div>
+
+---
+
+## 📥 Download (Latest Releases)
+
+Get the latest versions directly from our automated deployment pipelines. No zips, no extracting, just one-click direct installs!
+
+### 💻 Desktop (Windows)
+> **[⬇️ Download Universal Media Downloader (.exe)](https://github.com/WhoisMonesh/YT-Downloader-Electro/releases/download/latest/Universal.Media.Downloader.0.2.0.exe)**
+
+### 📱 Mobile (Android)
+> **[⬇️ Download Universal Media Downloader (.apk)](https://github.com/WhoisMonesh/YT-Downloader-Electro/releases/download/mobile-latest/app-debug.apk)**
+
+---
+
+## ✨ What's New: UI & Aesthetic Upgrades
+
+We've completely overhauled the UI to provide a state-of-the-art, premium experience:
+- **Glassmorphism & Gradients**: Deep violet and indigo gradients overlayed with frosted glass panels.
+- **Custom Fonts & Micro-animations**: Integrated the sleek **Outfit** font family alongside buttery smooth hover states and transition animations.
+- **Custom Application Icons**: Full high-density native application icons built deeply into the Windows `.exe` and the Android `.apk`.
+- **Dynamic Layout**: A fully responsive sidebar, sleek download queue visuals, and premium dark-mode aesthetics.
+
+---
 
 ## 🚀 Features
-- **Ultimate Media Support**: Download from thousands of websites (powered by yt-dlp).
+- **Ultimate Media Support**: Download from thousands of websites (powered by highly optimized `yt-dlp`).
 - **Torrent/Magnet Streaming**: Seamless peer-to-peer downloads with zero seeding via `torrent-stream`.
-- **Beautiful UI**: Modern glassmorphism UI with violet/indigo gradients.
-- **Conversion & Merging**: Embedded FFmpeg pipeline for complex video-audio merging and format conversion.
-- **Mobile Standalone App**: A fully native Android counterpart being built in React Native inside the `mobile/` directory.
+- **Conversion & Merging**: Embedded FFmpeg pipeline for complex video-audio merging and format conversion right on your machine.
+- **Native Android Client**: A fully standalone Android counterpart utilizing React Native, delivering the same immense power to your phone.
 
-## 🏗️ Architecture
+---
 
-Below is the high-level architecture diagram illustrating how the Electron Main Process communicates with native binaries, the React frontend, and the future Mobile app.
+## 🏗️ Architecture Diagram
+
+Below is the high-level architecture diagram illustrating how the Electron Main Process communicates with native binaries, the React frontend, and the Android mobile app.
 
 ```mermaid
 graph TD
@@ -38,7 +74,7 @@ graph TD
         Main -->|Uses| NodeTorrent
     end
 
-    %% Mobile Architecture (Option 2)
+    %% Mobile Architecture
     subgraph Mobile [Standalone Android App]
         RN[React Native UI]
         Chaquopy[Chaquopy Python Bridge]
@@ -61,6 +97,8 @@ graph TD
     class YTDLP,FFMPEG,NodeTorrent,MobileYTDLP binary;
 ```
 
+---
+
 ## 💻 Development (Desktop)
 
 To run the Electron application locally:
@@ -73,25 +111,18 @@ npm install
 npm run dev
 ```
 
-To build the executable (Windows/Mac/Linux):
+To build the executable manually (Windows/Mac/Linux):
 ```bash
 npm run build
+npm run package
 ```
 
 ## 📱 Development (Mobile)
 
-The standalone Android app (Option 2) lives in the `mobile/` directory.
+The standalone Android app lives in the `mobile/` directory.
 
 ```bash
 cd mobile
 npm install
 npx react-native run-android
 ```
-
-## 🛠️ GitHub Actions (CI)
-The project utilizes automated CI pipelines for seamless deployment:
-- **`build.yml`**: Compiles the Electron application for Windows & Mac and packages the executable.
-- **`android-native.yml`**: Compiles the React Native application using Gradle and generates an `app-debug.apk`.
-
-> [!NOTE]
-> All artifacts are securely hosted by GitHub Actions upon successful pushes to the main branch.
