@@ -160,7 +160,11 @@ export class DownloadEngine {
 
     if (item.url.startsWith("magnet:?")) {
       const torrentStream = require("torrent-stream");
-      const engine = torrentStream(item.url, { path: item.outputPath });
+      const engine = torrentStream(item.url, { 
+        path: item.outputPath,
+        uploads: false, // Disable seeding
+        connections: this.settings.get("aria2c")?.maxConnections || 100 // Reuse setting
+      });
       
       this.activeDownloads.set(id, { item, torrentStream: engine });
 
@@ -173,18 +177,21 @@ export class DownloadEngine {
       engine.on("download", (pieceIndex: number, buffer: Buffer) => {
         const downloaded = engine.swarm.downloaded;
         const total = engine.torrent.length;
+        const peers = engine.swarm.wires.length;
         const progress = {
           progress: (downloaded / total) * 100,
           speed: engine.swarm.downloadSpeed(),
           eta: Math.round(((total - downloaded) / (engine.swarm.downloadSpeed() || 1))),
           downloadedSize: downloaded,
-          totalSize: total
+          totalSize: total,
+          peers: peers
         };
         item.progress = progress.progress;
         item.speed = progress.speed;
         item.eta = progress.eta;
         item.downloadedSize = progress.downloadedSize;
         item.totalSize = progress.totalSize;
+        item.peers = peers;
         this.broadcastProgress(id, progress);
       });
 

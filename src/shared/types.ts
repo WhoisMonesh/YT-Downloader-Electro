@@ -289,6 +289,7 @@ export interface DownloadItem {
   downloadedSize: number;
   totalSize: number;
   fileSize?: number;
+  peers?: number;
   priority: Priority;
   createdAt: string;
   updatedAt: string;

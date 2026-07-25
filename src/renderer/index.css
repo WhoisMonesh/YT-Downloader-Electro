@@ -53,7 +53,7 @@
   }
 
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
     background-color: rgb(var(--color-bg));
     color: rgb(var(--color-text));
     -webkit-font-smoothing: antialiased;
@@ -61,21 +61,22 @@
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: rgba(17, 17, 19, 0.4);
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgb(63 63 70);
-    border-radius: 3px;
+    background: rgba(63, 63, 70, 0.6);
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgb(82 82 91);
+    background: rgba(82, 82, 91, 0.8);
   }
 
   .drag-region {
@@ -89,18 +90,26 @@
 
 @layer components {
   .glass-panel {
-    background: rgba(17, 17, 19, 0.7);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(39, 39, 42, 0.5);
+    background: rgba(17, 17, 19, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 0.75rem;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
   }
 
   .card {
-    background: rgba(17, 17, 19, 0.7);
+    background: rgba(23, 23, 25, 0.7);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(39, 39, 42, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 0.75rem;
     padding: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3);
   }
 
   .title-bar {
@@ -117,26 +126,26 @@
   }
 
   .btn-primary {
-    @apply px-4 py-2 rounded-lg bg-blue text-surface-400 font-medium text-sm
-      hover:bg-blue-dark active:bg-blue-dark transition-all duration-150
-      disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-4 py-2 rounded-lg bg-gradient-to-r from-blue to-accent-600 text-white font-medium text-sm
+      hover:from-blue-dark hover:to-accent-700 active:scale-95 hover:scale-105 transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg shadow-blue/20;
   }
 
   .btn-secondary {
-    @apply px-4 py-2 rounded-lg bg-accent-900/50 border border-accent-800 text-accent-300 font-medium text-sm
-      hover:bg-accent-800/50 active:bg-accent-700/50 transition-all duration-150
-      disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-4 py-2 rounded-lg bg-surface-100/50 backdrop-blur-md border border-accent-800 text-accent-300 font-medium text-sm
+      hover:bg-surface-100 active:scale-95 hover:scale-105 transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
   }
 
   .btn-ghost {
     @apply px-2 py-1 rounded text-accent-400 text-sm
-      hover:bg-accent-900/50 hover:text-accent-200 active:bg-accent-800/50 transition-all duration-150;
+      hover:bg-accent-900/50 hover:text-accent-200 active:scale-95 transition-all duration-200;
   }
 
   .btn-danger {
     @apply px-4 py-2 rounded-lg bg-red/20 border border-red/30 text-red font-medium text-sm
-      hover:bg-red/30 active:bg-red/40 transition-all duration-150
-      disabled:opacity-50 disabled:cursor-not-allowed;
+      hover:bg-red/30 active:scale-95 hover:scale-105 transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
   }
 
   .input-field {
@@ -155,14 +164,14 @@
 
   .sidebar-item {
     @apply flex items-center gap-3 px-3 py-2 rounded-lg text-accent-400 text-sm
-      hover:bg-accent-900/50 hover:text-accent-200 transition-all duration-150 cursor-pointer;
+      hover:bg-accent-900/50 hover:text-accent-200 transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-95;
     pointer-events: auto;
     position: relative;
     z-index: 10;
   }
 
   .sidebar-item.active {
-    @apply bg-blue/10 text-blue border border-blue/20;
+    @apply bg-blue/10 text-blue border border-blue/20 shadow-inner;
   }
 
   aside {
@@ -182,11 +191,18 @@
   }
 
   .progress-bar {
-    @apply w-full h-1.5 bg-accent-900 rounded-full overflow-hidden;
+    @apply w-full h-1.5 bg-surface-100 rounded-full overflow-hidden border border-accent-800/50;
   }
 
   .progress-bar-fill {
-    @apply h-full bg-gradient-to-r from-blue to-green rounded-full transition-all duration-300 ease-out;
+    @apply h-full bg-gradient-to-r from-blue via-accent-400 to-blue rounded-full transition-all duration-300 ease-out;
+    background-size: 200% 100%;
+    animation: gradientMove 2s linear infinite;
+  }
+
+  @keyframes gradientMove {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
   }
 
   .animate-fade-in {

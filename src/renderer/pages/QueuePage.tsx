@@ -98,14 +98,25 @@ export default function QueuePage() {
                   <span>{item.quality || 'best'}</span>
                   <span>{(item.outputFormat || 'mp4').toUpperCase()}</span>
                   {item.totalSize > 0 && (
-                    <span className="text-accent-600">{formatSize(item.totalSize)}</span>
+                    <span className="text-accent-600 font-mono">{formatSize(item.totalSize)}</span>
+                  )}
+                  {item.eta !== undefined && item.eta > 0 && item.status === "downloading" && (
+                    <span className="text-blue/80 font-mono">
+                      {item.eta > 60 ? `${Math.floor(item.eta / 60)}m ${item.eta % 60}s` : `${item.eta}s`}
+                    </span>
+                  )}
+                  {item.peers !== undefined && (
+                    <span className="text-green/80 flex items-center gap-1 font-mono">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                      {item.peers}
+                    </span>
                   )}
                 </div>
                 {item.status === "downloading" && item.progress > 0 && (
-                  <div className="mt-2">
-                    <div className="h-1.5 bg-accent-900 rounded-full overflow-hidden">
+                  <div className="mt-3">
+                    <div className="progress-bar">
                       <div
-                        className="h-full bg-blue rounded-full transition-all duration-300"
+                        className="progress-bar-fill"
                         style={{ width: `${item.progress}%` }}
                       />
                     </div>
@@ -130,24 +141,24 @@ export default function QueuePage() {
                 {item.status === "downloading" && (
                   <button
                     onClick={async () => { await api.pauseDownload(item.id); fetchQueue(); }}
-                    className="text-xs text-yellow hover:text-yellow-light p-1 rounded hover:bg-yellow/10 transition-colors"
+                    className="text-xs text-yellow hover:text-yellow-light p-1.5 rounded-lg hover:bg-yellow/10 active:scale-95 transition-all duration-200"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
                   </button>
                 )}
                 {item.status === "paused" && (
                   <button
                     onClick={async () => { await api.resumeDownload(item.id); fetchQueue(); }}
-                    className="text-xs text-green hover:text-green-light p-1 rounded hover:bg-green/10 transition-colors"
+                    className="text-xs text-green hover:text-green-light p-1.5 rounded-lg hover:bg-green/10 active:scale-95 transition-all duration-200"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   </button>
                 )}
                 <button
                   onClick={async () => { await api.cancelDownload(item.id); fetchQueue(); }}
-                  className="text-xs text-red hover:text-red-light p-1 rounded hover:bg-red/10 transition-colors"
+                  className="text-xs text-red hover:text-red-light p-1.5 rounded-lg hover:bg-red/10 active:scale-95 transition-all duration-200"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
             </div>

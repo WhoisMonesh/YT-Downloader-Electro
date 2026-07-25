@@ -98,7 +98,7 @@
     "copyright": "Copyright © 2026 Universal Media Downloader",
     "directories": {
       "output": "release",
-      "buildResources": "build"
+      "buildResources": "resources"
     },
     "files": [
       "dist/**/*",

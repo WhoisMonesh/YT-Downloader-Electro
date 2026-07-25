@@ -51,8 +51,9 @@ export default function HomePage() {
         setRecentUrls((prev) => [detectedUrl, ...prev.filter((u) => u !== detectedUrl)].slice(0, 10));
         
         // One click download check
+        // Auto-download magnets or one-click downloads
         const settings = await window.electronAPI.getSettings();
-        if (settings.oneClickDownload) {
+        if (settings.oneClickDownload || detectedUrl.startsWith("magnet:?")) {
            await window.electronAPI.startDownload({
              url: info.url, title: info.title, thumbnail: info.thumbnail,
              channel: info.channel, duration: info.duration, outputFormat: format, quality,
@@ -92,6 +93,16 @@ export default function HomePage() {
       const info = await window.electronAPI.analyzeUrl(url);
       setMedia(info);
       setRecentUrls((prev) => [url, ...prev.filter((u) => u !== url)].slice(0, 10));
+
+      // Auto-download for magnets
+      if (url.startsWith("magnet:?")) {
+        await window.electronAPI.startDownload({
+          url: info.url, title: info.title, thumbnail: info.thumbnail,
+          channel: info.channel, duration: info.duration, outputFormat: format, quality,
+        });
+        setUrl(""); setMedia(null);
+        navigate("/queue");
+      }
     } catch (e) {
       console.error("Analysis failed:", e);
       setUrlError("Failed to analyze URL. Please check the URL and try again.");
@@ -202,8 +213,10 @@ export default function HomePage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-accent-100 mb-2">Universal Media Downloader</h1>
-          <p className="text-accent-500">Paste a URL and download media in any format</p>
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue via-accent-300 to-accent-600 mb-2 tracking-tight">
+            Universal Media Downloader
+          </h1>
+          <p className="text-accent-500/80 font-medium">Paste a URL and download media in any format</p>
         </div>
         <div>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".txt,.csv" className="hidden" />
@@ -235,17 +248,11 @@ export default function HomePage() {
               onChange={(e) => { setUrl(e.target.value); validateUrl(e.target.value); }}
               onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
               placeholder="Paste a URL or drag & drop..."
-              className={`input-field pr-20 ${urlError ? "border-red/50 focus:ring-red/30 focus:border-red/50" : ""}`}
+              className={`input-field pr-20 shadow-inner ${urlError ? "border-red/50 focus:ring-red/50 focus:border-red/50" : "focus:ring-blue/50 focus:border-blue/50"}`}
             />
             {url && (
-              <button
-                onClick={handleClear}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-accent-500 hover:text-accent-300 transition-colors"
-                title="Clear"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+              <button onClick={handleClear} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-accent-500 hover:bg-surface hover:text-accent-300 transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             )}
           </div>
@@ -267,20 +274,26 @@ export default function HomePage() {
             ) : "Analyze"}
           </button>
         </div>
-        {urlError && (
-          <p className="text-xs text-red flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-            </svg>
-            {urlError}
-          </p>
-        )}
-        {isDragging && (
-          <div className="absolute inset-0 flex items-center justify-center bg-blue/5 rounded-xl pointer-events-none">
-            <p className="text-blue font-medium">Drop URL here</p>
+        {urlError && <p className="text-red text-sm mt-1 animate-fade-in">{urlError}</p>}
+      </div>
+
+      {analyzing && (
+        <div className="card border-border/50 animate-pulse">
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="w-full md:w-64 h-40 bg-surface rounded-lg shrink-0"></div>
+            <div className="flex-1 space-y-4 py-2">
+              <div className="h-6 bg-surface rounded w-3/4"></div>
+              <div className="h-4 bg-surface rounded w-1/2"></div>
+              <div className="space-y-2 pt-4">
+                <div className="h-4 bg-surface rounded w-full"></div>
+                <div className="h-4 bg-surface rounded w-5/6"></div>
+              </div>
+            </div>
           </div>
-        )}
-        {media && (
+        </div>
+      )}
+
+      {media && !analyzing && (
           <div className="animate-fade-in">
             <div className="flex gap-4 p-4 bg-surface-200/50 rounded-xl">
               {media.thumbnail && (
@@ -451,7 +464,6 @@ export default function HomePage() {
             </button>
           </div>
         )}
-      </div>
       {recentUrls.length > 0 && (
         <div className="glass-panel p-4">
           <div className="flex items-center justify-between mb-3">
