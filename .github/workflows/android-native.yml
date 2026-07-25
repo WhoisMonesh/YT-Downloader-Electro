@@ -1,0 +1,68 @@
+name: Build React Native Android App (Option 2)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ./mobile
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make gradlew executable
+        working-directory: ./mobile/android
+        run: chmod +x ./gradlew
+
+      - name: Install Python pip
+        run: sudo apt-get update && sudo apt-get install -y python3-pip
+
+      - name: Build APK with Gradle
+        working-directory: ./mobile/android
+        run: ./gradlew assembleRelease --info --stacktrace
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-media-mobile.apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 7
+
+      - name: Release Direct APK
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        with:
+          tag_name: mobile-latest
+          name: Latest Android APK
+          files: mobile/android/app/build/outputs/apk/release/app-release.apk
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

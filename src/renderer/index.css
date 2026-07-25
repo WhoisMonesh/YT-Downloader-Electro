@@ -1,0 +1,242 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: 9 9 11;
+    --color-surface: 17 17 19;
+    --color-border: 39 39 42;
+    --color-accent-50: 237 242 255;
+    --color-accent-100: 221 225 255;
+    --color-accent-200: 180 197 255;
+    --color-accent-300: 137 180 250;
+    --color-accent-400: 116 168 247;
+    --color-accent-500: 95 155 244;
+    --color-accent-600: 69 133 244;
+    --color-accent-700: 24 99 235;
+    --color-accent-800: 30 64 175;
+    --color-accent-900: 23 37 84;
+    --color-text: 250 250 250;
+    --color-text-secondary: 166 173 200;
+  }
+
+  [data-theme="light"] {
+    --color-bg: 246 246 246;
+    --color-surface: 239 239 239;
+    --color-border: 212 212 212;
+    --color-accent-50: 23 37 84;
+    --color-accent-100: 30 64 175;
+    --color-accent-200: 69 133 244;
+    --color-accent-300: 95 155 244;
+    --color-accent-400: 116 168 247;
+    --color-accent-500: 137 180 250;
+    --color-accent-600: 180 197 255;
+    --color-accent-700: 221 225 255;
+    --color-accent-800: 237 242 255;
+    --color-accent-900: 246 246 246;
+    --color-text: 30 30 30;
+    --color-text-secondary: 100 100 100;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: rgb(var(--color-bg));
+    color: rgb(var(--color-text));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(17, 17, 19, 0.4);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(63, 63, 70, 0.6);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(82, 82, 91, 0.8);
+  }
+
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background: rgba(17, 17, 19, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  }
+
+  .card {
+    background: rgba(23, 23, 25, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3);
+  }
+
+  .title-bar {
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.75rem;
+    background: rgba(17, 17, 19, 0.5);
+    border-bottom: 1px solid rgba(39, 39, 42, 0.3);
+    -webkit-app-region: drag;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 rounded-lg bg-gradient-to-r from-blue to-accent-600 text-white font-medium text-sm
+      hover:from-blue-dark hover:to-accent-700 active:scale-95 hover:scale-105 transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg shadow-blue/20;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 rounded-lg bg-surface-100/50 backdrop-blur-md border border-accent-800 text-accent-300 font-medium text-sm
+      hover:bg-surface-100 active:scale-95 hover:scale-105 transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
+
+  .btn-ghost {
+    @apply px-2 py-1 rounded text-accent-400 text-sm
+      hover:bg-accent-900/50 hover:text-accent-200 active:scale-95 transition-all duration-200;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 rounded-lg bg-red/20 border border-red/30 text-red font-medium text-sm
+      hover:bg-red/30 active:scale-95 hover:scale-105 transition-all duration-200
+      disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
+  }
+
+  .input-field {
+    @apply w-full h-10 px-4 rounded-lg bg-accent-900/50 border border-accent-800
+      text-accent-100 text-sm placeholder-accent-600
+      focus:outline-none focus:ring-2 focus:ring-blue/50 focus:border-blue/50
+      transition-all duration-150;
+  }
+
+  .select-field {
+    @apply h-10 px-3 rounded-lg bg-accent-900/50 border border-accent-800
+      text-accent-100 text-sm
+      focus:outline-none focus:ring-2 focus:ring-blue/50 focus:border-blue/50
+      transition-all duration-150;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-accent-400 text-sm
+      hover:bg-accent-900/50 hover:text-accent-200 transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-95;
+    pointer-events: auto;
+    position: relative;
+    z-index: 10;
+  }
+
+  .sidebar-item.active {
+    @apply bg-blue/10 text-blue border border-blue/20 shadow-inner;
+  }
+
+  aside {
+    position: relative;
+    z-index: 20;
+  }
+
+  main {
+    position: relative;
+    z-index: 10;
+  }
+
+  .progress-ring-circle {
+    transition: stroke-dashoffset 0.35s;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+
+  .progress-bar {
+    @apply w-full h-1.5 bg-surface-100 rounded-full overflow-hidden border border-accent-800/50;
+  }
+
+  .progress-bar-fill {
+    @apply h-full bg-gradient-to-r from-blue via-accent-400 to-blue rounded-full transition-all duration-300 ease-out;
+    background-size: 200% 100%;
+    animation: gradientMove 2s linear infinite;
+  }
+
+  @keyframes gradientMove {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #313244; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #45475a; }

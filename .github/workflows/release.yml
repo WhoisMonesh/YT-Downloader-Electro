@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+          - os: macos-latest
+            target: mac
+          - os: ubuntu-latest
+            target: linux
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Rebuild native modules
+        run: npx electron-rebuild -f -w better-sqlite3
+
+      - name: Download yt-dlp (Windows)
+        if: matrix.target == 'win'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path yt-dlp
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "yt-dlp/yt-dlp.exe"
+
+      - name: Download yt-dlp (Mac & Linux)
+        if: matrix.target == 'mac' || matrix.target == 'linux'
+        shell: bash
+        run: |
+          mkdir -p yt-dlp
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o yt-dlp/yt-dlp
+          chmod +x yt-dlp/yt-dlp
+
+
+
+      - name: Build ${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --${{ matrix.target }} --x64 --publish never
+
+      - name: Find release files
+        id: find
+        shell: bash
+        run: |
+          if [ "${{ matrix.target }}" = "win" ]; then
+            echo "files=$(find release -maxdepth 1 -name '*.exe' | tr '\n' ',')" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.target }}" = "mac" ]; then
+            echo "files=$(find release -maxdepth 1 -name '*.dmg' | tr '\n' ',')" >> $GITHUB_OUTPUT
+          else
+            echo "files=$(find release -maxdepth 1 -name '*.AppImage' -o -maxdepth 1 -name '*.deb' | tr '\n' ',')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find.outputs.files }}
+          draft: false
+          tag_name: latest
+          name: Latest Build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
