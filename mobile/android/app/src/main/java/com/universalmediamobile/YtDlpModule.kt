@@ -9,10 +9,12 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 
 class YtDlpModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
-    init {
+    override fun initialize() {
+        super.initialize()
         Thread(Runnable {
             try {
-                YoutubeDL.getInstance().init(reactContext)
+                val context = reactApplicationContext
+                YoutubeDL.getInstance().init(context)
                 
                 // Initialize FFmpeg only if the library class is present
                 try {
@@ -21,7 +23,7 @@ class YtDlpModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
                     val getInstance = ffmpegClass.getMethod("getInstance")
                     val ffmpegInstance = getInstance.invoke(null)
                     val initMethod = ffmpegClass.getMethod("init", android.content.Context::class.java)
-                    initMethod.invoke(ffmpegInstance, reactContext)
+                    initMethod.invoke(ffmpegInstance, context)
                 } catch (cnfe: ClassNotFoundException) {
                     // FFmpeg library not present — skip initialization
                 }
