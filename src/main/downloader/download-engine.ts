@@ -169,6 +169,9 @@ export class DownloadEngine {
       this.activeDownloads.set(id, { item, torrentStream: engine });
 
       engine.on("ready", () => {
+        if (engine.torrent && engine.torrent.name) {
+          item.title = engine.torrent.name;
+        }
         engine.files.forEach((file: any) => {
           file.select();
         });

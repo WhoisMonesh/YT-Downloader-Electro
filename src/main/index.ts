@@ -301,6 +301,10 @@ app.whenReady().then(async () => {
     rssManager.start();
     syncManager = new SyncManager(settings, historyManager);
     syncManager.start();
+    
+    // Start Mobile Backend API Server
+    const { startApiServer } = require("./api/server");
+    startApiServer(3001, downloadEngine);
 
     windowManager = new WindowManager(settings);
     const mainWindow = windowManager.createMainWindow();
