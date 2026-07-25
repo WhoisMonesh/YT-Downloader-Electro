@@ -39,7 +39,7 @@ export class DownloadEngine {
   private settings: SettingsManager;
   private queueManager: QueueManager;
   private historyManager: HistoryManager;
-  private activeDownloads: Map<string, { pid?: number; process?: ChildProcess; item: DownloadItem }> = new Map();
+  private activeDownloads: Map<string, { pid?: number; process?: ChildProcess; item: DownloadItem; webtorrentClient?: any }> = new Map();
   private maxConcurrent: number = 3;
   private queue: DownloadItem[] = [];
   private lastDownloadStartTime: number = 0;
@@ -159,89 +159,127 @@ export class DownloadEngine {
     }
 
     if (item.url.startsWith("magnet:?")) {
-      const aria2cPath = this.settings.get("aria2c")?.path || "aria2c";
-      const ariaArgs = [
-        "--dir", item.outputPath,
-        "--seed-time=0", // Don't seed after download
-        "--summary-interval=1",
-        item.url
-      ];
-      proc = require("child_process").spawn(aria2cPath, ariaArgs, { stdio: ["pipe", "pipe", "pipe"] });
-      pid = proc.pid;
-    } else {
-      const args = this.buildArgs(item);
-      proc = this.ytDlp.execute(args);
-      pid = proc.pid;
-    }
+      const WebTorrent = require("webtorrent");
+      const client = new WebTorrent();
+      
+      this.activeDownloads.set(id, { item, webtorrentClient: client });
 
-    this.activeDownloads.set(id, { pid, process: proc, item });
+      const torrent = client.add(item.url, { path: item.outputPath });
+      
+      torrent.on("download", () => {
+        const progress = {
+          progress: torrent.progress * 100,
+          speed: torrent.downloadSpeed,
+          eta: Math.round(torrent.timeRemaining / 1000),
+          downloadedSize: torrent.downloaded,
+          totalSize: torrent.length
+        };
+        item.progress = progress.progress;
+        item.speed = progress.speed;
+        item.eta = progress.eta;
+        item.downloadedSize = progress.downloadedSize;
+        item.totalSize = progress.totalSize;
+        this.broadcastProgress(id, progress);
+      });
 
-    proc.stdout?.on("data", (data: Buffer) => {
-      const lines = data.toString().split(/[\r\n]+/);
-      for (const line of lines) {
-        let progress = null;
-        if (item.url.startsWith("magnet:?")) {
-          const match = line.match(/\((\d+)%\)/);
-          if (match) {
-            progress = { progress: parseFloat(match[1]) };
-          }
-        } else {
-          progress = this.parseProgress(line);
-        }
-
-        if (progress) {
-          if (progress.progress !== undefined) item.progress = progress.progress;
-          if (progress.speed !== undefined) item.speed = progress.speed;
-          if (progress.eta !== undefined) item.eta = progress.eta;
-          if (progress.downloadedSize !== undefined) item.downloadedSize = progress.downloadedSize;
-          if (progress.totalSize !== undefined) item.totalSize = progress.totalSize;
-          this.broadcastProgress(id, progress);
-        }
-      }
-    });
-
-    proc.on("close", (code: number | null) => {
-      this.activeDownloads.delete(id);
-      // Process next in queue
-      this.processQueue();
-
-      if (code === 0) {
+      torrent.on("done", () => {
+        this.activeDownloads.delete(id);
+        this.processQueue();
+        
         item.status = "completed";
         item.progress = 100;
         this.historyManager.addToHistory({
           id: randomUUID(),
           downloadId: id,
-          title: item.title,
+          title: torrent.name || item.title || "Torrent Download",
           url: item.url,
           thumbnail: item.thumbnail,
-          channel: item.channel,
+          channel: item.channel || "P2P",
           duration: item.duration,
           outputPath: item.outputPath,
           outputFormat: item.outputFormat,
-          fileSize: item.downloadedSize,
+          fileSize: item.downloadedSize || torrent.length,
           downloadedAt: new Date().toISOString(),
           type: "video",
         });
         this.broadcastCompleted(item);
-      } else {
+        this.checkQueueCompletion();
+        client.destroy();
+      });
+
+      torrent.on("error", (err: Error) => {
         item.status = "failed";
-        item.error = "Exit code " + String(code);
+        item.error = err.message;
+        this.activeDownloads.delete(id);
+        this.processQueue();
         this.broadcastFailed(item);
-      }
-      this.checkQueueCompletion();
-    });
+        client.destroy();
+      });
 
-    proc.on("error", (err: Error) => {
-      item.status = "failed";
-      item.error = err.message;
-      this.activeDownloads.delete(id);
-      // Process next in queue
-      this.processQueue();
-      this.broadcastFailed(item);
-    });
+      logger.info("Torrent Download started: " + id);
+      return item;
+    } else {
+      const args = this.buildArgs(item);
+      proc = this.ytDlp.execute(args);
+      pid = proc.pid;
+      this.activeDownloads.set(id, { pid, process: proc, item });
 
-    logger.info("Download started: " + id);
-    return item;
+      proc.stdout?.on("data", (data: Buffer) => {
+        const lines = data.toString().split(/[\r\n]+/);
+        for (const line of lines) {
+          const progress = this.parseProgress(line);
+          if (progress) {
+            if (progress.progress !== undefined) item.progress = progress.progress;
+            if (progress.speed !== undefined) item.speed = progress.speed;
+            if (progress.eta !== undefined) item.eta = progress.eta;
+            if (progress.downloadedSize !== undefined) item.downloadedSize = progress.downloadedSize;
+            if (progress.totalSize !== undefined) item.totalSize = progress.totalSize;
+            this.broadcastProgress(id, progress);
+          }
+        }
+      });
+
+      proc.on("close", (code: number | null) => {
+        this.activeDownloads.delete(id);
+        this.processQueue();
+
+        if (code === 0) {
+          item.status = "completed";
+          item.progress = 100;
+          this.historyManager.addToHistory({
+            id: randomUUID(),
+            downloadId: id,
+            title: item.title,
+            url: item.url,
+            thumbnail: item.thumbnail,
+            channel: item.channel,
+            duration: item.duration,
+            outputPath: item.outputPath,
+            outputFormat: item.outputFormat,
+            fileSize: item.downloadedSize,
+            downloadedAt: new Date().toISOString(),
+            type: "video",
+          });
+          this.broadcastCompleted(item);
+        } else {
+          item.status = "failed";
+          item.error = "Exit code " + String(code);
+          this.broadcastFailed(item);
+        }
+        this.checkQueueCompletion();
+      });
+
+      proc.on("error", (err: Error) => {
+        item.status = "failed";
+        item.error = err.message;
+        this.activeDownloads.delete(id);
+        this.processQueue();
+        this.broadcastFailed(item);
+      });
+
+      logger.info("Download started: " + id);
+      return item;
+    }
   }
 
   private processQueue(): void {
@@ -390,26 +428,38 @@ export class DownloadEngine {
 
   pauseDownload(id: string): void {
     const download = this.activeDownloads.get(id);
-    if (download && download.process && download.pid) {
-      try {
-        process.kill(download.pid, "SIGSTOP");
+    if (download) {
+      if (download.webtorrentClient) {
+        download.webtorrentClient.torrents.forEach((t: any) => t.pause());
         download.item.status = "paused";
-        logger.info("Download paused: " + id);
-      } catch (err) {
-        logger.error("Failed to pause download: " + id, err);
+        logger.info("WebTorrent download paused: " + id);
+      } else if (download.process && download.pid) {
+        try {
+          process.kill(download.pid, "SIGSTOP");
+          download.item.status = "paused";
+          logger.info("Download paused: " + id);
+        } catch (err) {
+          logger.error("Failed to pause download: " + id, err);
+        }
       }
     }
   }
 
   resumeDownload(id: string): void {
     const download = this.activeDownloads.get(id);
-    if (download && download.process && download.pid) {
-      try {
-        process.kill(download.pid, "SIGCONT");
+    if (download) {
+      if (download.webtorrentClient) {
+        download.webtorrentClient.torrents.forEach((t: any) => t.resume());
         download.item.status = "downloading";
-        logger.info("Download resumed: " + id);
-      } catch (err) {
-        logger.error("Failed to resume download: " + id, err);
+        logger.info("WebTorrent download resumed: " + id);
+      } else if (download.process && download.pid) {
+        try {
+          process.kill(download.pid, "SIGCONT");
+          download.item.status = "downloading";
+          logger.info("Download resumed: " + id);
+        } catch (err) {
+          logger.error("Failed to resume download: " + id, err);
+        }
       }
     }
   }
@@ -417,8 +467,10 @@ export class DownloadEngine {
   cancelDownload(id: string): void {
     const download = this.activeDownloads.get(id);
     if (download) {
-      // Kill the process if still running
-      if (download.process && download.pid) {
+      if (download.webtorrentClient) {
+        download.webtorrentClient.destroy();
+        logger.info("WebTorrent download destroyed: " + id);
+      } else if (download.process && download.pid) {
         try {
           process.kill(download.pid, "SIGTERM");
           setTimeout(() => {

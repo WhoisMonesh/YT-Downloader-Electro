@@ -23,6 +23,7 @@ export class WindowManager {
       frame: false,
       backgroundColor: "#0f0f0f",
       show: false,
+      icon: join(__dirname, "../../resources/icon.png"),
       webPreferences: {
         preload: join(__dirname, "../preload/index.js"),
         contextIsolation: true,
